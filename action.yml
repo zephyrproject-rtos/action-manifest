@@ -1,0 +1,29 @@
+name: 'Manifest'
+description: 'Manage Pull Requests that modify a west manifest'
+inputs:
+  github-token:
+    description: 'The token to authenticate with'
+  messages:
+    description: '|-separated Messages to post'
+    required: false
+    default: 'none'
+  labels:
+    description: 'Comma-separated list of labels'
+    required: false
+    default: 'none'
+
+runs:
+  using: "composite"
+  steps: 
+    - id: setup-python
+      run: |
+        pip3 install setuptools wheel
+        pip3 install -r ${{ github.action_path }}/requirements.txt
+      shell: bash
+    - id: run-python
+      run: |
+           python3 ${{ github.action_path }}/action.py -c "${{ inputs.command }}" \
+           -m "${{ inputs.messages }}" -l "${{ inputs.labels }}"
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
