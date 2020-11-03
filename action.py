@@ -65,16 +65,22 @@ def main():
         evt = json.load(f)
 
     pr = evt['pull_request']
-    user = pr['user']
-    login = user['login']
+    #user = pr['user']
+    #login = user['login']
+    #print(f'user: {login} PR: {pr["title"]}')
 
-    print(f'user: {login} PR: {pr["title"]}')
+    #org, repo = gh_tuple_split(org_repo)
+    #print(f'org: {org} repo: {repo}')
 
     gh = Github(token)
 
-    org, repo = gh_tuple_split(org_repo)
+    gh_repo = gh.get_repo(org_repo)
+    gh_pr = gh_repo.get_pull(int(pr['number']))
 
-    print(f'org: {org} repo: {repo}')
+    for f in gh_pr.get_files():
+        print(f.filename)
+        if f.filename == args.path:
+            print(f'Matched manifest {f.filename}')
 
     sys.exit(0)
 
@@ -83,7 +89,6 @@ def main():
 
     tk_usr = gh.get_user()
     gh_repo = gh.get_repo(org_repo)
-    gh_pr = gh_repo.get_pull(int(pr['number']))
 
     comment = None
     for c in gh_pr.get_issue_comments():
