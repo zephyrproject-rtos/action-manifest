@@ -4,6 +4,7 @@ import argparse
 from github import Github, GithubException
 import json
 import os
+import requests
 import sys
 
 NOTE = "\n\n*Note: This comment is automatically posted and updated by the " \
@@ -77,10 +78,23 @@ def main():
     gh_repo = gh.get_repo(org_repo)
     gh_pr = gh_repo.get_pull(int(pr['number']))
 
+    mfile = None
     for f in gh_pr.get_files():
         print(f.filename)
         if f.filename == args.path:
             print(f'Matched manifest {f.filename}, url: {f.raw_url}')
+            mfile = f
+            break
+
+    if not mfile:
+        print('Manifest file {args.path} not modified by this Pull Request')
+        sys.exit(0)
+
+    # Download manifest file
+    header = {'Authorization': f'token {token}'}
+    req = requests.get(url=mfile.raw_url, headers=header)
+    
+    print(req.content)
 
     sys.exit(0)
 
