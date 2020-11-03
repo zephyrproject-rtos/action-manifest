@@ -7,7 +7,7 @@ import os
 import sys
 
 NOTE = "\n\n*Note: This comment is automatically posted and updated by the " \
-       "Contribs GitHub Action.* "
+       "Manifest GitHub Action.* "
  
 def gh_tuple_split(s):
     sl = s.split('/')
@@ -19,12 +19,11 @@ def gh_tuple_split(s):
 def main():
 
     parser = argparse.ArgumentParser(
-        description="GH Action script for contribution management",
+        description="GH Action script for west manifest management",
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('-c', '--command', action='store',
-                        choices=['external'],
+    parser.add_argument('-p', '--path', action='store',
                         required=True,
-                        help='Command to execute.')
+                        help='Path to the manifest file.')
 
     parser.add_argument('-m', '--messages', action='store',
                         required=False,
@@ -77,12 +76,10 @@ def main():
 
     print(f'org: {org} repo: {repo}')
 
+    sys.exit(0)
+
     gh_org = gh.get_organization(org)
     gh_usr = gh.get_user(login)
-    member = gh_org.has_in_members(gh_usr)
-    nstr = '' if member else 'NOT '
-
-    print(f'User {login} is {nstr}a member of org {org}')
 
     tk_usr = gh.get_user()
     gh_repo = gh.get_repo(org_repo)
@@ -95,24 +92,16 @@ def main():
             break
 
     message = messages[0] + NOTE
-    if not comment and not member:
-        print('Creating comment')
-        gh_pr.create_issue_comment(message)
-    elif comment and member and len(messages) > 1:
-        print('Updating comment')
-        comment.edit(messages[1] + NOTE)
+    gh_pr.create_issue_comment(message)
+    comment.edit(messages[1] + NOTE)
 
-    if not member:
-        print('Adding labels')
+    for l in labels:
+        gh_pr.add_to_labels(l)
+    try:
         for l in labels:
-            gh_pr.add_to_labels(l)
-    else:
-        print('Removing labels')
-        try:
-            for l in labels:
-                gh_pr.remove_from_labels(l)
-        except GithubException as e:
-            print('Unable to remove labels')
+            gh_pr.remove_from_labels(l)
+    except GithubException as e:
+        print('Unable to remove labels')
 
     sys.exit(0)
 

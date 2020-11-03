@@ -3,6 +3,9 @@ description: 'Manage Pull Requests that modify a west manifest'
 inputs:
   github-token:
     description: 'The token to authenticate with'
+  manifest-path:
+    description: 'The path to the manifest file'
+    required: true
   messages:
     description: '|-separated Messages to post'
     required: false
@@ -22,7 +25,7 @@ runs:
       shell: bash
     - id: run-python
       run: |
-           python3 ${{ github.action_path }}/action.py -c "${{ inputs.command }}" \
+           python3 ${{ github.action_path }}/action.py -p "${{ inputs.manifest-path }}" \
            -m "${{ inputs.messages }}" -l "${{ inputs.labels }}"
       shell: bash
       env:
