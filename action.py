@@ -80,7 +80,7 @@ def main():
     for f in gh_pr.get_files():
         print(f.filename)
         if f.filename == args.path:
-            print(f'Matched manifest {f.filename}')
+            print(f'Matched manifest {f.filename}, url: {f.raw_url}')
 
     sys.exit(0)
 
