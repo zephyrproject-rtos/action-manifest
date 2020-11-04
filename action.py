@@ -6,6 +6,7 @@ import json
 import os
 import requests
 import sys
+from west.manifest import Manifest, ImportFlag
 
 NOTE = "\n\n*Note: This comment is automatically posted and updated by the " \
        "Manifest GitHub Action.* "
@@ -80,7 +81,6 @@ def main():
 
     mfile = None
     for f in gh_pr.get_files():
-        print(f.filename)
         if f.filename == args.path:
             print(f'Matched manifest {f.filename}, url: {f.raw_url}')
             mfile = f
@@ -93,8 +93,15 @@ def main():
     # Download manifest file
     header = {'Authorization': f'token {token}'}
     req = requests.get(url=mfile.raw_url, headers=header)
+    try:
+        manifest = Manifest.from_data(req.content.decode(),
+                                      import_flags=ImportFlag.IGNORE_PROJECTS)
+    except MalformedManifest as e:
+        print(f'Failed to parse manifest from {mfile.filename}: {e}')
+        sys.exit(1)
     
-    print(req.content)
+    for p in manifest.projects:
+        print(p)
 
     sys.exit(0)
 
