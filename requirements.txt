@@ -1,2 +1,3 @@
 PyGithub
+requests
 west>=0.8.0

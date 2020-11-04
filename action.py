@@ -4,6 +4,7 @@ import argparse
 from github import Github, GithubException
 import json
 import os
+import re
 import requests
 import sys
 from west.manifest import Manifest, ImportFlag
@@ -18,6 +19,20 @@ def gh_tuple_split(s):
 
     return sl[0], sl[1]
 
+def manifest_from_url(url)
+
+    # Download manifest file
+    header = {'Authorization': f'token {token}'}
+    req = requests.get(url=url, headers=header)
+    try:
+        manifest = Manifest.from_data(req.content.decode(),
+                                      import_flags=ImportFlag.IGNORE_PROJECTS)
+    except MalformedManifest as e:
+        print(f'Failed to parse manifest from {url}: {e}')
+        sys.exit(1)
+
+    return manifest
+ 
 def main():
 
     parser = argparse.ArgumentParser(
@@ -67,12 +82,6 @@ def main():
         evt = json.load(f)
 
     pr = evt['pull_request']
-    #user = pr['user']
-    #login = user['login']
-    #print(f'user: {login} PR: {pr["title"]}')
-
-    #org, repo = gh_tuple_split(org_repo)
-    #print(f'org: {org} repo: {repo}')
 
     gh = Github(token)
 
@@ -90,17 +99,22 @@ def main():
         print('Manifest file {args.path} not modified by this Pull Request')
         sys.exit(0)
 
-    # Download manifest file
-    header = {'Authorization': f'token {token}'}
-    req = requests.get(url=mfile.raw_url, headers=header)
-    try:
-        manifest = Manifest.from_data(req.content.decode(),
-                                      import_flags=ImportFlag.IGNORE_PROJECTS)
-    except MalformedManifest as e:
-        print(f'Failed to parse manifest from {mfile.filename}: {e}')
-        sys.exit(1)
+    gh_pr.base.sha
+    base_mfile = repo.get_contents(mfile.filename, gh_pr.base.sha)
+
+    manifest = manifest_from_url(mfile.raw_url)
+    base_manifest = manifest_from_url(base_mfile.download_url)
     
-    for p in manifest.projects:
+    # Find projects that point to a Pull Request instead of a SHA or a tag
+    re_rev = re.compile(r'pull\/(\d+)\/head')
+    projects = [p for p in manifest.projects if re_rev.match(p.revision)]
+
+    if len(projects) == 0:
+        print('No projects using a pull request as a revision')
+        sys.exit(0)
+
+    for p in projects:
+        print(re_rev.match(p.revision).group(1))
         print(p)
 
     sys.exit(0)
