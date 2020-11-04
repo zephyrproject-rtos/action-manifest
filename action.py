@@ -19,7 +19,7 @@ def gh_tuple_split(s):
 
     return sl[0], sl[1]
 
-def manifest_from_url(url)
+def manifest_from_url(url):
 
     # Download manifest file
     header = {'Authorization': f'token {token}'}
