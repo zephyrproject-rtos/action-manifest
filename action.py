@@ -99,8 +99,7 @@ def main():
         print('Manifest file {args.path} not modified by this Pull Request')
         sys.exit(0)
 
-    gh_pr.base.sha
-    base_mfile = repo.get_contents(mfile.filename, gh_pr.base.sha)
+    base_mfile = gh_repo.get_contents(mfile.filename, gh_pr.base.sha)
 
     manifest = manifest_from_url(mfile.raw_url)
     base_manifest = manifest_from_url(base_mfile.download_url)
