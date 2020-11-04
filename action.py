@@ -19,7 +19,7 @@ def gh_tuple_split(s):
 
     return sl[0], sl[1]
 
-def manifest_from_url(url):
+def manifest_from_url(token, url):
 
     # Download manifest file
     header = {'Authorization': f'token {token}'}
@@ -101,8 +101,8 @@ def main():
 
     base_mfile = gh_repo.get_contents(mfile.filename, gh_pr.base.sha)
 
-    manifest = manifest_from_url(mfile.raw_url)
-    base_manifest = manifest_from_url(base_mfile.download_url)
+    manifest = manifest_from_url(token, mfile.raw_url)
+    base_manifest = manifest_from_url(token, base_mfile.download_url)
     
     # Find projects that point to a Pull Request instead of a SHA or a tag
     re_rev = re.compile(r'pull\/(\d+)\/head')
