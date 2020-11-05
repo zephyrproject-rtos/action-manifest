@@ -103,6 +103,14 @@ def main():
 
     manifest = manifest_from_url(token, mfile.raw_url)
     base_manifest = manifest_from_url(token, base_mfile.download_url)
+
+    projs = set((p.name, p.revision) for p in manifest.projects)
+    base_projs = set((p.name, p.revision) for p in base_manifest.projects)
+
+    print(f'Set projs: {projs}')
+    print(f'Set base_projs: {base_projs}')
+    print(f'Set difference: {projs - base_projs}')
+    sys.exit(0)
     
     # Find projects that point to a Pull Request instead of a SHA or a tag
     re_rev = re.compile(r'pull\/(\d+)\/head')
