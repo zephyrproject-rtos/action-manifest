@@ -156,7 +156,7 @@ def main():
         pr_url = pr.html_url
 
     for pr in prs:
-        print(p)
+        print('Processing project {p}')
     sys.exit(0)
 
     comment = None
