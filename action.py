@@ -12,7 +12,7 @@ from west.manifest import Manifest, ImportFlag
 NOTE = "\n\n*Note: This comment is automatically posted and updated by the " \
        "Manifest GitHub Action.* "
  
-_logging = False
+_logging = 0
 
 def log(s):
     if _logging:
@@ -65,9 +65,9 @@ def main():
 
     parser.add_argument('-v', '--verbose-level', action='store',
                         type=int, default=0, choices=range(0, 2),
-                        required=False, help='Comma-separated list of labels.')
+                        required=False, help='Verbosity level.')
 
-    log(sys.argv)
+    print(sys.argv)
 
     args = parser.parse_args()
 
