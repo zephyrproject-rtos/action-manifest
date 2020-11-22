@@ -133,6 +133,7 @@ def main():
     # Extract those that point to a PR
     re_rev = re.compile(r'pull\/(\d+)\/head')
     pr_projs = set(filter(lambda p: re_rev.match(p[1]), projs))
+    log(f'PR projects: {pr_projs}')
 
     if not len(pr_projs):
         # Remove the DNM label
@@ -156,7 +157,7 @@ def main():
         pr_url = pr.html_url
 
     for pr in prs:
-        print('Processing project {p}')
+        print(f'Processing pr {pr}')
     sys.exit(0)
 
     comment = None
