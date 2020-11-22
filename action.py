@@ -120,7 +120,7 @@ def main():
         print('Base revision does not contain a valid manifest')
         exit(0)
 
-    new_manifest = manifest_from_url(token, mfile.raw_url)
+    new_manifest = manifest_from_url(token, new_mfile.raw_url)
     old_manifest = manifest_from_url(token, old_mfile.download_url)
 
     new_projs = set((p.name, p.revision) for p in new_manifest.projects)
