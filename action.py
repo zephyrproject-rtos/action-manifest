@@ -12,6 +12,16 @@ from west.manifest import Manifest, ImportFlag
 NOTE = "\n\n*Note: This comment is automatically posted and updated by the " \
        "Manifest GitHub Action.* "
  
+_logging = True
+
+def log(s):
+    if _logging:
+        print(s, file=sys.stdout)
+
+def die(s):
+    print(s, file=sys.stderr)
+    sys.exit(1)
+
 def gh_tuple_split(s):
     sl = s.split('/')
     if len(sl) != 2:
@@ -28,8 +38,7 @@ def manifest_from_url(token, url):
         manifest = Manifest.from_data(req.content.decode(),
                                       import_flags=ImportFlag.IGNORE_PROJECTS)
     except MalformedManifest as e:
-        print(f'Failed to parse manifest from {url}: {e}')
-        sys.exit(1)
+        die(f'Failed to parse manifest from {url}: {e}')
 
     return manifest
  
@@ -50,9 +59,15 @@ def main():
                         required=False,
                         help='Comma-separated list of labels.')
 
-    print(sys.argv)
+    parser.add_argument('-v', '--verbose-level', action='store',
+                        type=int, default=0, choices=range(0, 2),
+                        required=False, help='Comma-separated list of labels.')
+
+    log(sys.argv)
 
     args = parser.parse_args()
+
+    _logging = args.verbose_level
 
     messages = [x.strip() for x in args.messages.split('|')]
     labels = [x.strip() for x in args.labels.split(',')]
@@ -62,13 +77,13 @@ def main():
     workflow = os.environ.get('GITHUB_WORKFLOW', None)
     org_repo = os.environ.get('GITHUB_REPOSITORY', None)
 
-    print(f'Running action {action} from workflow {workflow} in {org_repo}')
+    log(f'Running action {action} from workflow {workflow} in {org_repo}')
     
     evt_name = os.environ.get('GITHUB_EVENT_NAME', None)
     evt_path = os.environ.get('GITHUB_EVENT_PATH', None)
     workspace = os.environ.get('GITHUB_WORKSPACE', None)
 
-    print(f'Event {evt_name} in {evt_path} and workspace {workspace}')
+    log(f'Event {evt_name} in {evt_path} and workspace {workspace}')
  
     token = os.environ.get('GITHUB_TOKEN', None)
     if not token:
@@ -88,36 +103,81 @@ def main():
     gh_repo = gh.get_repo(org_repo)
     gh_pr = gh_repo.get_pull(int(pr['number']))
 
-    mfile = None
+    new_mfile = None
     for f in gh_pr.get_files():
         if f.filename == args.path:
-            print(f'Matched manifest {f.filename}, url: {f.raw_url}')
-            mfile = f
+            log(f'Matched manifest {f.filename}, url: {f.raw_url}')
+            new_mfile = f
             break
 
-    if not mfile:
-        print('Manifest file {args.path} not modified by this Pull Request')
+    if not new_mfile:
+        log('Manifest file {args.path} not modified by this Pull Request')
         sys.exit(0)
 
-    base_mfile = gh_repo.get_contents(mfile.filename, gh_pr.base.sha)
+    try:
+        old_mfile = gh_repo.get_contents(args.path, gh_pr.base.sha)
+    except GithubException as e:
+        print('Base revision does not contain a valid manifest')
+        exit(0)
 
-    manifest = manifest_from_url(token, mfile.raw_url)
-    base_manifest = manifest_from_url(token, base_mfile.download_url)
+    new_manifest = manifest_from_url(token, mfile.raw_url)
+    old_manifest = manifest_from_url(token, old_mfile.download_url)
 
-    projs = set((p.name, p.revision) for p in manifest.projects)
-    base_projs = set((p.name, p.revision) for p in base_manifest.projects)
+    new_projs = set((p.name, p.revision) for p in new_manifest.projects)
+    old_projs = set((p.name, p.revision) for p in old_manifest.projects)
 
-    print(f'Set projs: {projs}')
-    print(f'Set base_projs: {base_projs}')
-    print(f'Set difference: {projs - base_projs}')
-    sys.exit(0)
-    
-    # Find projects that point to a Pull Request instead of a SHA or a tag
+    # List all existing projects that have changed revision, but not name.
+    # If a project has changed name or is new, it is not handled for now.
+    projs = set(filter(lambda p: p[0] in list(p[0] for p in old_projs),
+                       new_projs - old_projs))
+    # Extract those that point to a PR
     re_rev = re.compile(r'pull\/(\d+)\/head')
-    projects = [p for p in manifest.projects if re_rev.match(p.revision)]
+    pr_projs = set(filter(lambda p: re_rev.match(p[1]), projs))
+
+    if not len(pr_projs):
+        # Remove the DNM label
+        try:
+            gh_pr.remove_from_labels(labels[0])
+        except GithubException as e:
+            print('Unable to remove label')
+    else:
+        # Add the DNM label
+        gh_pr.add_to_labels(labels[0])
+
+    # Link main PR to project PRs
+    prs = list()
+    for p in pr_projs:
+        url = new_manifest.get_projects([p[0]])[0].url
+        re_url = re.compile(r'https://github\.com/'
+                             '([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/?')
+        repo = gh.get_repo(re_url.match(url)[1])
+        pr = repo.get_pull(int(re_rev.match(p[1])[1]))
+        prs.append((p, pr))
+        pr_url = pr.html_url
+
+    comment = None
+    for c in gh_pr.get_issue_comments():
+        if c.user.login == tk_usr.login and NOTE in c.body:
+            comment = c
+            break
+
+    message = messages[0] + NOTE
+    if not comment and not member:
+        print('Creating comment')
+        gh_pr.create_issue_comment(message)
+    elif comment and member and len(messages) > 1:
+        print('Updating comment')
+        comment.edit(messages[1] + NOTE)
+
+
+
+    log(f'Set new_projs: {new_projs}')
+    log(f'Set old_projs: {old_projs}')
+    log(f'Set difference: {new_projs - old_projs}')
+    sys.exit(0)
 
     if len(projects) == 0:
-        print('No projects using a pull request as a revision')
+        log('No projects using a pull request as a revision')
         sys.exit(0)
 
     for p in projects:
