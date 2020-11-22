@@ -155,6 +155,10 @@ def main():
         prs.append((p, pr))
         pr_url = pr.html_url
 
+    for pr in prs:
+        print(p)
+    sys.exit(0)
+
     comment = None
     for c in gh_pr.get_issue_comments():
         if c.user.login == tk_usr.login and NOTE in c.body:
