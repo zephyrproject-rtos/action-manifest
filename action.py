@@ -73,8 +73,10 @@ def main():
 
     _logging = args.verbose_level
 
-    messages = [x.strip() for x in args.messages.split('|')]
-    labels = [x.strip() for x in args.labels.split(',')]
+    messages = [x.strip() for x in args.messages.split('|')] \
+               if args.messages != 'none' else None
+    labels = [x.strip() for x in args.labels.split(',')] \
+             if args.labels != 'none' else None
     lp = args.lp if args.lp != 'none' else None
 
     # Retrieve main env vars
