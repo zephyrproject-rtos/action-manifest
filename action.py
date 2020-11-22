@@ -12,7 +12,7 @@ from west.manifest import Manifest, ImportFlag
 NOTE = "\n\n*Note: This comment is automatically posted and updated by the " \
        "Manifest GitHub Action.* "
  
-_logging = True
+_logging = False
 
 def log(s):
     if _logging:
@@ -59,6 +59,10 @@ def main():
                         required=False,
                         help='Comma-separated list of labels.')
 
+    parser.add_argument('--lp', action='store',
+                        required=False,
+                        help='Label prefix.')
+
     parser.add_argument('-v', '--verbose-level', action='store',
                         type=int, default=0, choices=range(0, 2),
                         required=False, help='Comma-separated list of labels.')
@@ -71,6 +75,7 @@ def main():
 
     messages = [x.strip() for x in args.messages.split('|')]
     labels = [x.strip() for x in args.labels.split(',')]
+    lp = args.lp if args.lp != 'none' else None
 
     # Retrieve main env vars
     action = os.environ.get('GITHUB_ACTION', None)

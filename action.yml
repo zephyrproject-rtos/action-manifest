@@ -11,7 +11,12 @@ inputs:
     required: false
     default: 'none'
   labels:
-    description: 'Comma-separated list of labels'
+    description: 'Comma-separated list of labels. First one corresponds to the
+                  one to apply only when PR revisions are present.'
+    required: false
+    default: 'none'
+  label-prefix:
+    description: 'Prefix for project-specific labels.'
     required: false
     default: 'none'
 
@@ -26,7 +31,7 @@ runs:
     - id: run-python
       run: |
            python3 ${{ github.action_path }}/action.py -p "${{ inputs.manifest-path }}" \
-           -m "${{ inputs.messages }}" -l "${{ inputs.labels }}"
+           -m "${{ inputs.messages }}" -l "${{ inputs.labels }}" --lp "${{ inputs.labels }}"
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
