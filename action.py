@@ -75,6 +75,7 @@ def main():
 
     args = parser.parse_args()
 
+    global _logging
     _logging = args.verbose_level
 
     messages = [x.strip() for x in args.messages.split('|')] \
