@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2020 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: Apache-2.0
 
 import argparse
 from github import Github, GithubException
@@ -28,6 +31,37 @@ def gh_tuple_split(s):
         raise RuntimeError("Invalid org or dst format")
 
     return sl[0], sl[1]
+
+# Taken from west:
+# https://github.com/zephyrproject-rtos/west/blob/99482c684528cdf76a843e04b83c34e49a2d8cf2/src/west/app/project.py#L1165
+def maybe_sha(rev):
+    # Return true if and only if the given revision might be a SHA.
+
+    try:
+        int(rev, 16)
+    except ValueError:
+        return False
+
+    return len(rev) <= 40
+
+def fmt_rev(repo, rev):
+    try:
+        if maybe_sha(rev):
+            return repo.get_commit(rev).html_url
+        elif rev in [t.name for t in repo.get_tags()]:
+            tag = next(filter(lambda t: t.name == rev, repo.get_tags()))
+            # For some reason there's no way of getting the URL via API
+            return f'{repo.html_url}/releases/tag/{rev}'
+        elif rev in [b.name for b in repo.get_branches()]:
+            branch = repo.get_branch(rev)
+            # For some reason there's no way of getting the URL via API
+            return f'{repo.html_url}/tree/{rev}'
+        else:
+            return rev
+    except GithubException:
+        return rev
+
+
 
 def manifest_from_url(token, url):
 
@@ -174,24 +208,25 @@ def main():
     strs = list()
     strs.append('The following projects have a revision update in this Pull '
                 'Request:\n')
-    strs.append('| Name | Old Revision | New Revision | Project PR |')
-    strs.append('| ---- | ------------ | ------------ | ---------- |')
+    strs.append('| Name | Old Revision | New Revision |')
+    strs.append('| ---- | ------------ | ------------ |')
     for p in projs:
-        old_rev = list(filter(lambda _p: _p[0] == p[0], old_projs))[0][1]
+        old_rev = next(filter(lambda _p: _p[0] == p[0], old_projs))[1]
         url = new_manifest.get_projects([p[0]])[0].url
         re_url = re.compile(r'https://github\.com/'
                              '([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/?')
         repo = gh.get_repo(re_url.match(url)[1])
-        line = f'| {p[0]} | {old_rev} | {p[1]} '
+
+        line = f'| {p[0]} | {fmt_rev(old_rev)} '
         if p in pr_projs:
             pr = repo.get_pull(int(re_rev.match(p[1])[1]))
             line += f'| {pr.html_url} |'
         else:
-            branches = list(map(lambda b: b.commit.sha,
+            branches = list(map(lambda b: b.name,
                             filter(lambda b: p[1] == b.commit.sha,
                                    repo.get_branches())))
-            line += f'({",".join(branches)})' if len(branches) else ''
-            line += '| N/A |'
+            line += f'| {fmt_rev(p[1])} ({",".join(branches)}) |' \
+                    if len(branches) else ''
         strs.append(line)
 
 
