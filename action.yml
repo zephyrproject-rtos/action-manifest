@@ -34,7 +34,7 @@ runs:
     - id: run-python
       run: |
            python3 ${{ github.action_path }}/action.py -p "${{ inputs.manifest-path }}" \
-           -m "${{ inputs.messages }}" -l "${{ inputs.labels }}" --lp "${{ inputs.labels }}" \
+           -m "${{ inputs.messages }}" -l "${{ inputs.labels }}" --lp "${{ inputs.label-prefix }}" \
            -v "${{ inputs.verbosity }}"
       shell: bash
       env:
