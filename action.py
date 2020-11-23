@@ -59,6 +59,10 @@ def main():
                         required=False,
                         help='Comma-separated list of labels.')
 
+    parser.add_argument('--dnm-labels', action='store',
+                        required=False,
+                        help='Comma-separated list of labels.')
+
     parser.add_argument('--lp', action='store',
                         required=False,
                         help='Label prefix.')
@@ -77,6 +81,8 @@ def main():
                if args.messages != 'none' else None
     labels = [x.strip() for x in args.labels.split(',')] \
              if args.labels != 'none' else None
+    dnm_labels = [x.strip() for x in args.dnm_labels.split(',')] \
+             if args.dnm_labels != 'none' else None
     lp = args.lp if args.lp != 'none' else None
 
     # Retrieve main env vars
