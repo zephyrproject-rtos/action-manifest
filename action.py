@@ -171,15 +171,13 @@ def main():
         gh_pr.add_to_labels(l)
 
     # Link main PR to project PRs
-    #prs = list()
-    #revs = list()
     strs = list()
     strs.append('The following projects have a revision update in this Pull '
                 'Request:\n')
     strs.append('| Name | Old Revision | New Revision | Project PR |')
     strs.append('| ---- | ------------ | ------------ | ---------- |')
     for p in projs:
-        old_rev = list(filter(lambda _p: _p[0] == p[0], s))[0][1]
+        old_rev = list(filter(lambda _p: _p[0] == p[0], old_projs))[0][1]
         url = new_manifest.get_projects([p[0]])[0].url
         re_url = re.compile(r'https://github\.com/'
                              '([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/?')
