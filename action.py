@@ -114,6 +114,7 @@ def main():
 
     gh = Github(token)
 
+    tk_usr = gh.get_user()
     gh_repo = gh.get_repo(org_repo)
     gh_pr = gh_repo.get_pull(int(pr['number']))
 
@@ -144,35 +145,56 @@ def main():
     # If a project has changed name or is new, it is not handled for now.
     projs = set(filter(lambda p: p[0] in list(p[0] for p in old_projs),
                        new_projs - old_projs))
+    if not len(projs):
+        log('No projects updating revision')
+        sys.exit(0)
+
     # Extract those that point to a PR
     re_rev = re.compile(r'pull\/(\d+)\/head')
     pr_projs = set(filter(lambda p: re_rev.match(p[1]), projs))
     log(f'PR projects: {pr_projs}')
 
     if not len(pr_projs):
-        # Remove the DNM label
+        # Remove the DNM labels
         try:
-            gh_pr.remove_from_labels(labels[0])
+            for l in dnm_labels:
+                gh_pr.remove_from_labels(l)
         except GithubException as e:
             print('Unable to remove label')
     else:
-        # Add the DNM label
-        gh_pr.add_to_labels(labels[0])
+        # Add the DNM labels
+        for l in dnm_labels:
+            gh_pr.add_to_labels(l)
+
+    # Add the regular labels
+    for l in labels:
+        gh_pr.add_to_labels(l)
 
     # Link main PR to project PRs
-    prs = list()
-    for p in pr_projs:
+    #prs = list()
+    #revs = list()
+    strs = list()
+    strs.append = ('The following projects have a revision update in this Pull '
+                  'Request:\n')
+    strs.append('| Name | Old Revision | New Revision | Project PR |')
+    strs.append('| ---- | ------------ | ------------ | ---------- |')
+    for p in projs:
+        old_rev = list(filter(lambda _p: _p[0] == p[0], s))[0][1]
         url = new_manifest.get_projects([p[0]])[0].url
         re_url = re.compile(r'https://github\.com/'
                              '([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/?')
         repo = gh.get_repo(re_url.match(url)[1])
-        pr = repo.get_pull(int(re_rev.match(p[1])[1]))
-        prs.append((p, pr))
-        pr_url = pr.html_url
+        line = f'| {p[0]} | {old_rev} | {p[1]} '
+        if p in pr_projs:
+            pr = repo.get_pull(int(re_rev.match(p[1])[1]))
+            line += f'| {pr.html_url} |'
+        else:
+            branches = list(map(lambda b: b.commit.sha,
+                            filter(lambda b: p[1] == b.commit.sha,
+                                   repo.get_branches())))
+            line += f'({",".join(branches)})' if len(branches) else ''
+            line += '| N/A |'
 
-    for pr in prs:
-        print(f'Processing pr {pr}')
-    sys.exit(0)
 
     comment = None
     for c in gh_pr.get_issue_comments():
@@ -180,55 +202,18 @@ def main():
             comment = c
             break
 
-    message = messages[0] + NOTE
-    if not comment and not member:
+    message = '\n'.join(strs) + NOTE
+    if not comment:
         print('Creating comment')
         gh_pr.create_issue_comment(message)
-    elif comment and member and len(messages) > 1:
+    else:
         print('Updating comment')
-        comment.edit(messages[1] + NOTE)
-
+        comment.edit(message)
 
 
     log(f'Set new_projs: {new_projs}')
     log(f'Set old_projs: {old_projs}')
     log(f'Set difference: {new_projs - old_projs}')
-    sys.exit(0)
-
-    if len(projects) == 0:
-        log('No projects using a pull request as a revision')
-        sys.exit(0)
-
-    for p in projects:
-        print(re_rev.match(p.revision).group(1))
-        print(p)
-
-    sys.exit(0)
-
-    gh_org = gh.get_organization(org)
-    gh_usr = gh.get_user(login)
-
-    tk_usr = gh.get_user()
-    gh_repo = gh.get_repo(org_repo)
-
-    comment = None
-    for c in gh_pr.get_issue_comments():
-        if c.user.login == tk_usr.login and NOTE in c.body:
-            comment = c
-            break
-
-    message = messages[0] + NOTE
-    gh_pr.create_issue_comment(message)
-    comment.edit(messages[1] + NOTE)
-
-    for l in labels:
-        gh_pr.add_to_labels(l)
-    try:
-        for l in labels:
-            gh_pr.remove_from_labels(l)
-    except GithubException as e:
-        print('Unable to remove labels')
-
     sys.exit(0)
 
 if __name__ == '__main__':
