@@ -192,6 +192,7 @@ def main():
                                    repo.get_branches())))
             line += f'({",".join(branches)})' if len(branches) else ''
             line += '| N/A |'
+        strs.append(line)
 
 
     comment = None
