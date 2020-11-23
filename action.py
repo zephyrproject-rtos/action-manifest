@@ -174,8 +174,8 @@ def main():
     #prs = list()
     #revs = list()
     strs = list()
-    strs.append = ('The following projects have a revision update in this Pull '
-                  'Request:\n')
+    strs.append('The following projects have a revision update in this Pull '
+                'Request:\n')
     strs.append('| Name | Old Revision | New Revision | Project PR |')
     strs.append('| ---- | ------------ | ------------ | ---------- |')
     for p in projs:
