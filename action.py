@@ -225,7 +225,7 @@ def main():
             branches = list(map(lambda b: b.name,
                             filter(lambda b: p[1] == b.commit.sha,
                                    repo.get_branches())))
-            line += f'| {fmt_rev(p[1])} ({",".join(branches)}) |' \
+            line += f'| {fmt_rev(repo, p[1])} ({",".join(branches)}) |' \
                     if len(branches) else ''
         strs.append(line)
 
