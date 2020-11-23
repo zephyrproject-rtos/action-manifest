@@ -63,7 +63,7 @@ def main():
                         required=False,
                         help='Comma-separated list of labels.')
 
-    parser.add_argument('--lp', action='store',
+    parser.add_argument('--label-prefix', action='store',
                         required=False,
                         help='Label prefix.')
 
