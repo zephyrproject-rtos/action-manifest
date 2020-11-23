@@ -83,7 +83,7 @@ def main():
              if args.labels != 'none' else None
     dnm_labels = [x.strip() for x in args.dnm_labels.split(',')] \
              if args.dnm_labels != 'none' else None
-    lp = args.lp if args.lp != 'none' else None
+    label_prefix = args.label_prefix if args.label_prefix != 'none' else None
 
     # Retrieve main env vars
     action = os.environ.get('GITHUB_ACTION', None)
