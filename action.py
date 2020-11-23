@@ -217,7 +217,7 @@ def main():
                              '([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/?')
         repo = gh.get_repo(re_url.match(url)[1])
 
-        line = f'| {p[0]} | {fmt_rev(old_rev)} '
+        line = f'| {p[0]} | {fmt_rev(repo, old_rev)} '
         if p in pr_projs:
             pr = repo.get_pull(int(re_rev.match(p[1])[1]))
             line += f'| {pr.html_url} |'
