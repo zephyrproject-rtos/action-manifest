@@ -216,7 +216,8 @@ def main():
                 'Request:\n')
     strs.append('| Name | Old Revision | New Revision |')
     strs.append('| ---- | ------------ | ------------ |')
-    for p in projs:
+    # Sort in alphabetical order for the table
+    for p in sorted(projs, key=lambda _p: _p[0]):
         old_rev = next(filter(lambda _p: _p[0] == p[0], old_projs))[1]
         url = new_manifest.get_projects([p[0]])[0].url
         re_url = re.compile(r'https://github\.com/'
