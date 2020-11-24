@@ -239,8 +239,10 @@ def main():
 
     comment = None
     for c in gh_pr.get_issue_comments():
-        if c.user.login == tk_usr.login and NOTE in c.body:
-        #if NOTE in c.body:
+        # The line below only works with an OAuth token with write access, but
+        # it is not really needed.
+        #if c.user.login == tk_usr.login and NOTE in c.body:
+        if NOTE in c.body:
             comment = c
             break
 
