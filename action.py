@@ -83,9 +83,9 @@ def main():
                         required=True,
                         help='Path to the manifest file.')
 
-    parser.add_argument('-m', '--messages', action='store',
+    parser.add_argument('-m', '--message', action='store',
                         required=False,
-                        help='Messages to post.')
+                        help='Message to post.')
 
     parser.add_argument('-l', '--labels', action='store',
                         required=False,
@@ -110,8 +110,7 @@ def main():
     global _logging
     _logging = args.verbose_level
 
-    messages = [x.strip() for x in args.messages.split('|')] \
-               if args.messages != 'none' else None
+    message = args.message if args.message != 'none' else None
     labels = [x.strip() for x in args.labels.split(',')] \
              if args.labels != 'none' else None
     dnm_labels = [x.strip() for x in args.dnm_labels.split(',')] \
@@ -212,6 +211,8 @@ def main():
 
     # Link main PR to project PRs
     strs = list()
+    if message:
+        strs.append(message)
     strs.append('The following projects have a revision update in this Pull '
                 'Request:\n')
     strs.append('| Name | Old Revision | New Revision |')

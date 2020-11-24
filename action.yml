@@ -9,8 +9,8 @@ inputs:
   manifest-path:
     description: 'The path to the manifest file'
     required: true
-  messages:
-    description: '|-separated Messages to post'
+  message:
+    description: 'Message to post'
     required: false
     default: 'none'
   labels:
