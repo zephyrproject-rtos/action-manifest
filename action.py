@@ -61,8 +61,6 @@ def fmt_rev(repo, rev):
     except GithubException:
         return rev
 
-
-
 def manifest_from_url(token, url):
 
     # Download manifest file
@@ -179,6 +177,8 @@ def main():
     # If a project has changed name or is new, it is not handled for now.
     projs = set(filter(lambda p: p[0] in list(p[0] for p in old_projs),
                        new_projs - old_projs))
+    log(f'projects: {projs}')
+
     if not len(projs):
         log('No projects updating revision')
         sys.exit(0)
@@ -188,21 +188,27 @@ def main():
     pr_projs = set(filter(lambda p: re_rev.match(p[1]), projs))
     log(f'PR projects: {pr_projs}')
 
-    if not len(pr_projs):
-        # Remove the DNM labels
-        try:
-            for l in dnm_labels:
-                gh_pr.remove_from_labels(l)
-        except GithubException as e:
-            print('Unable to remove label')
-    else:
-        # Add the DNM labels
-        for l in dnm_labels:
+    # Set labels
+    if labels:
+        for l in labels:
             gh_pr.add_to_labels(l)
 
-    # Add the regular labels
-    for l in labels:
-        gh_pr.add_to_labels(l)
+    if label_prefix:
+        for p in projs:
+            gh_pr.add_to_labels(f'{label_prefix}{p[0]}')
+
+    if dnm_labels:
+        if not len(pr_projs):
+            # Remove the DNM labels
+            try:
+                for l in dnm_labels:
+                    gh_pr.remove_from_labels(l)
+            except GithubException as e:
+                print('Unable to remove label')
+        else:
+            # Add the DNM labels
+            for l in dnm_labels:
+                gh_pr.add_to_labels(l)
 
     # Link main PR to project PRs
     strs = list()
@@ -229,7 +235,6 @@ def main():
                     if len(branches) else ''
         strs.append(line)
 
-
     comment = None
     for c in gh_pr.get_issue_comments():
         #if c.user.login == tk_usr.login and NOTE in c.body:
@@ -245,10 +250,6 @@ def main():
         print('Updating comment')
         comment.edit(message)
 
-
-    log(f'Set new_projs: {new_projs}')
-    log(f'Set old_projs: {old_projs}')
-    log(f'Set difference: {new_projs - old_projs}')
     sys.exit(0)
 
 if __name__ == '__main__':
