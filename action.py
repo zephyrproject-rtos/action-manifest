@@ -182,7 +182,7 @@ def main():
 
     # List all existing projects that have changed revision, but not name.
     # If a project has changed name or is new, it is not handled for now.
-    projs = set(filter(lambda p: p in list(p[0] for p in old_projs),
+    projs = set(filter(lambda p: p[0] in list(p[0] for p in old_projs),
                        new_projs - old_projs))
     log(f'projects: {projs}')
 
