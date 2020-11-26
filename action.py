@@ -63,6 +63,8 @@ def fmt_rev(repo, rev):
 
 def manifest_from_url(token, url):
 
+    log(f'Creating manifest from {url}')
+
     # Download manifest file
     header = {'Authorization': f'token {token}'}
     req = requests.get(url=url, headers=header)
