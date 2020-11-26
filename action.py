@@ -30,7 +30,7 @@ def gh_tuple_split(s):
     if len(sl) != 2:
         raise RuntimeError("Invalid org or dst format")
 
-    return sl, sl[1]
+    return sl[0], sl[1]
 
 # Taken from west:
 # https://github.com/zephyrproject-rtos/west/blob/99482c684528cdf76a843e04b83c34e49a2d8cf2/src/west/app/project.py#L1165
@@ -202,7 +202,7 @@ def main():
 
     if label_prefix:
         for p in projs:
-            gh_pr.add_to_labels(f'{label_prefix}{p}')
+            gh_pr.add_to_labels(f'{label_prefix}{p[0]}')
 
     if dnm_labels:
         if not len(pr_projs):
@@ -226,14 +226,14 @@ def main():
     strs.append('| Name | Old Revision | New Revision |')
     strs.append('| ---- | ------------ | ------------ |')
     # Sort in alphabetical order for the table
-    for p in sorted(projs, key=lambda _p: _p):
-        old_rev = next(filter(lambda _p: _p == p[0], old_projs))[1]
-        url = new_manifest.get_projects([p])[0].url
+    for p in sorted(projs, key=lambda _p: _p[0]):
+        old_rev = next(filter(lambda _p: _p[0] == p[0], old_projs))[1]
+        url = new_manifest.get_projects([p[0]])[0].url
         re_url = re.compile(r'https://github\.com/'
                              '([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/?')
         repo = gh.get_repo(re_url.match(url)[1])
 
-        line = f'| {p} | {fmt_rev(repo, old_rev)} '
+        line = f'| {p[0]} | {fmt_rev(repo, old_rev)} '
         if p in pr_projs:
             pr = repo.get_pull(int(re_rev.match(p[1])[1]))
             line += f'| {pr.html_url} |'
