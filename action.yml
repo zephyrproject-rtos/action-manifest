@@ -13,6 +13,10 @@ inputs:
     description: 'Message to post'
     required: false
     default: 'none'
+  where:
+    description: 'Where to post the message. Use comment or description'
+    required: false
+    default: 'comment'
   labels:
     description: 'Comma-separated list of labels.'
     required: false
@@ -38,7 +42,8 @@ runs:
       run: |
            python3 ${{ github.action_path }}/action.py -p "${{ inputs.manifest-path }}" \
            -m "${{ inputs.message }}" -l "${{ inputs.labels }}" --label-prefix "${{ inputs.label-prefix }}" \
-           --dnm-labels "${{ inputs.dnm-labels }}" -v "${{ inputs.verbosity-level }}"
+           --dnm-labels "${{ inputs.dnm-labels }}" --where "${{ inputs.where }}" \
+           -v "${{ inputs.verbosity-level }}"
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}

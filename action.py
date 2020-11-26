@@ -12,7 +12,7 @@ import requests
 import sys
 from west.manifest import Manifest, ImportFlag
 
-NOTE = "\n\n*Note: This comment is automatically posted and updated by the " \
+NOTE = "\n\n*Note: This message is automatically posted and updated by the " \
        "Manifest GitHub Action.* "
  
 _logging = 0
@@ -30,7 +30,7 @@ def gh_tuple_split(s):
     if len(sl) != 2:
         raise RuntimeError("Invalid org or dst format")
 
-    return sl[0], sl[1]
+    return sl, sl[1]
 
 # Taken from west:
 # https://github.com/zephyrproject-rtos/west/blob/99482c684528cdf76a843e04b83c34e49a2d8cf2/src/west/app/project.py#L1165
@@ -98,6 +98,10 @@ def main():
     parser.add_argument('--label-prefix', action='store',
                         required=False,
                         help='Label prefix.')
+
+    parser.add_argument('--where', action='store',
+                        choices=('comment', 'description'),
+                        required=True, help='Where to post.')
 
     parser.add_argument('-v', '--verbose-level', action='store',
                         type=int, default=0, choices=range(0, 2),
@@ -174,7 +178,7 @@ def main():
 
     # List all existing projects that have changed revision, but not name.
     # If a project has changed name or is new, it is not handled for now.
-    projs = set(filter(lambda p: p[0] in list(p[0] for p in old_projs),
+    projs = set(filter(lambda p: p in list(p[0] for p in old_projs),
                        new_projs - old_projs))
     log(f'projects: {projs}')
 
@@ -194,7 +198,7 @@ def main():
 
     if label_prefix:
         for p in projs:
-            gh_pr.add_to_labels(f'{label_prefix}{p[0]}')
+            gh_pr.add_to_labels(f'{label_prefix}{p}')
 
     if dnm_labels:
         if not len(pr_projs):
@@ -218,14 +222,14 @@ def main():
     strs.append('| Name | Old Revision | New Revision |')
     strs.append('| ---- | ------------ | ------------ |')
     # Sort in alphabetical order for the table
-    for p in sorted(projs, key=lambda _p: _p[0]):
-        old_rev = next(filter(lambda _p: _p[0] == p[0], old_projs))[1]
-        url = new_manifest.get_projects([p[0]])[0].url
+    for p in sorted(projs, key=lambda _p: _p):
+        old_rev = next(filter(lambda _p: _p == p[0], old_projs))[1]
+        url = new_manifest.get_projects([p])[0].url
         re_url = re.compile(r'https://github\.com/'
                              '([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/?')
         repo = gh.get_repo(re_url.match(url)[1])
 
-        line = f'| {p[0]} | {fmt_rev(repo, old_rev)} '
+        line = f'| {p} | {fmt_rev(repo, old_rev)} '
         if p in pr_projs:
             pr = repo.get_pull(int(re_rev.match(p[1])[1]))
             line += f'| {pr.html_url} |'
@@ -237,22 +241,25 @@ def main():
                     if len(branches) else ''
         strs.append(line)
 
-    comment = None
-    for c in gh_pr.get_issue_comments():
-        # The line below only works with an OAuth token with write access, but
-        # it is not really needed.
-        #if c.user.login == tk_usr.login and NOTE in c.body:
-        if NOTE in c.body:
-            comment = c
-            break
-
     message = '\n'.join(strs) + NOTE
-    if not comment:
-        print('Creating comment')
-        gh_pr.create_issue_comment(message)
+    if args.where == 'comment':
+        comment = None
+        for c in gh_pr.get_issue_comments():
+            # The line below only works with an OAuth token with write access, but
+            # it is not really needed.
+            #if c.user.login == tk_usr.login and NOTE in c.body:
+            if NOTE in c.body:
+                comment = c
+                break
+
+        if not comment:
+            print('Creating comment')
+            gh_pr.create_issue_comment(message)
+        else:
+            print('Updating comment')
+            comment.edit(message)
     else:
-        print('Updating comment')
-        comment.edit(message)
+        gh_pr.edit(body=gh_pr.body + '----' + message)
 
     sys.exit(0)
 
