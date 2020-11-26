@@ -177,6 +177,8 @@ def main():
 
     new_projs = set((p.name, p.revision) for p in new_manifest.projects)
     old_projs = set((p.name, p.revision) for p in old_manifest.projects)
+    log('old_projs: {old_projs}')
+    log('new_projs: {new_projs}')
 
     # List all existing projects that have changed revision, but not name.
     # If a project has changed name or is new, it is not handled for now.
