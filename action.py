@@ -263,7 +263,7 @@ def main():
             print('Updating comment')
             comment.edit(message)
     else:
-        gh_pr.edit(body=gh_pr.body + '----' + message)
+        gh_pr.edit(body=gh_pr.body + '\n\n----\n\n' + message)
 
     sys.exit(0)
 
