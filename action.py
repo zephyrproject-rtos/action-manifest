@@ -147,6 +147,7 @@ def main():
     with open(evt_path, 'r') as f:
         evt = json.load(f)
 
+    log(evt)
     pr = evt['pull_request']
 
     gh = Github(token)
