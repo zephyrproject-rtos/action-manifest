@@ -74,7 +74,6 @@ def get_merge_base(pr, workspace, checkout):
     if checkout:
         cwd = os.path.join(workspace, checkout)
         log(f'Using git merge-base in {cwd}')
-        print(git('log', '--oneline', '-10', cwd=cwd))
         sha = git('merge-base', pr.base.sha,  pr.head.sha, cwd=cwd)
         log(f'Found merge base {sha} with git')
         return sha
@@ -252,11 +251,11 @@ def main():
         print('Base revision does not contain a valid manifest')
         exit(0)
 
-    new_manifest = manifest_from_url(token, new_mfile.raw_url)
     old_manifest = manifest_from_url(token, old_mfile.download_url)
+    new_manifest = manifest_from_url(token, new_mfile.raw_url)
 
-    new_projs = set((p.name, p.revision) for p in new_manifest.projects)
     old_projs = set((p.name, p.revision) for p in old_manifest.projects)
+    new_projs = set((p.name, p.revision) for p in new_manifest.projects)
     log(f'old_projs: {old_projs}')
     log(f'new_projs: {new_projs}')
 
@@ -264,7 +263,7 @@ def main():
     # If a project has changed name or is new, it is not handled for now.
     projs = set(filter(lambda p: p[0] in list(p[0] for p in old_projs),
                        new_projs - old_projs))
-    log(f'projects: {projs}')
+    log(f'projs: {projs}')
 
     if not len(projs):
         log('No projects updating revision')
