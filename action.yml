@@ -9,6 +9,10 @@ inputs:
   manifest-path:
     description: 'The path to the manifest file'
     required: true
+  checkout-path:
+    description: 'The path to the checked out Pull Request'
+    default: 'none'
+    required: false
   message:
     description: 'Message to post'
     required: false
@@ -41,7 +45,8 @@ runs:
     - id: run-python
       run: |
            python3 ${{ github.action_path }}/action.py -p "${{ inputs.manifest-path }}" \
-           -m "${{ inputs.message }}" -l "${{ inputs.labels }}" --label-prefix "${{ inputs.label-prefix }}" \
+           --checkout-path "${{ inputs.checkout-path}}" -m "${{ inputs.message }}" \
+           -l "${{ inputs.labels }}" --label-prefix "${{ inputs.label-prefix }}" \
            --dnm-labels "${{ inputs.dnm-labels }}" --where "${{ inputs.where }}" \
            -v "${{ inputs.verbosity-level }}"
       shell: bash

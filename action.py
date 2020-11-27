@@ -9,6 +9,8 @@ import json
 import os
 import re
 import requests
+import shlex
+import subprocess
 import sys
 import time
 from west.manifest import Manifest, ImportFlag
@@ -33,10 +35,52 @@ def gh_tuple_split(s):
 
     return sl[0], sl[1]
 
-def get_merge_base(pr):
+def cmd2str(cmd):
+    # Formats the command-line arguments in the iterable 'cmd' into a string,
+    # for error messages and the like
+
+    return " ".join(shlex.quote(word) for word in cmd)
+
+# Taken from Zephyr's check_compliance script
+def git(*args, cwd=None):
+    # Helper for running a Git command. Returns the rstrip()ed stdout output.
+    # Called like git("diff"). Exits with SystemError (raised by sys.exit()) on
+    # errors. 'cwd' is the working directory to use (default: current
+    # directory).
+
+    git_cmd = ("git",) + args
+    try:
+        git_process = subprocess.Popen(
+            git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
+    except OSError as e:
+        err(f"failed to run '{cmd2str(git_cmd)}': {e}")
+
+    stdout, stderr = git_process.communicate()
+    stdout = stdout.decode("utf-8")
+    stderr = stderr.decode("utf-8")
+    if git_process.returncode or stderr:
+        die(f"""\
+'{cmd2str(git_cmd)}' exited with status {git_process.returncode} and/or wrote
+to stderr.
+==stdout==
+{stdout}
+==stderr==
+{stderr}""")
+
+    return stdout.rstrip()
+
+def get_merge_base(pr, workspace, checkout):
+
+    if checkout:
+        cwd = os.path.join(workspace, checkout)
+        log(f'Using git merge-base in {cwd}')
+        print(git('log', '--oneline', '-10', cwd=cwd))
+        sha = git('merge-base', pr.base.sha,  pr.head.sha, cwd=cwd)
+        log(f'Found merge base {sha} with git')
+        return sha
+
     base_commit = pr.base.repo.get_commit(pr.base.sha)
     head_commit = pr.head.repo.get_commit(pr.head.sha)
-
     # This is a very naive implementation but should work fine in general
     i = 10000
     base_shas = list()
@@ -117,6 +161,10 @@ def main():
                         required=False,
                         help='Message to post.')
 
+    parser.add_argument('--checkout-path', action='store',
+                        required=False,
+                        help='Path to the checked out PR.')
+
     parser.add_argument('-l', '--labels', action='store',
                         required=False,
                         help='Comma-separated list of labels.')
@@ -145,6 +193,7 @@ def main():
     _logging = args.verbose_level
 
     message = args.message if args.message != 'none' else None
+    checkout = args.checkout_path if args.checkout_path != 'none' else None
     labels = [x.strip() for x in args.labels.split(',')] \
              if args.labels != 'none' else None
     dnm_labels = [x.strip() for x in args.dnm_labels.split(',')] \
@@ -194,7 +243,9 @@ def main():
         log('Manifest file {args.path} not modified by this Pull Request')
         sys.exit(0)
 
-    base_sha = get_merge_base(gh_pr)
+    base_sha = get_merge_base(gh_pr, workspace, checkout)
+    log(f'PR base SHA: {gh_pr.base.sha} merge-base SHA: {base_sha}')
+
     try:
         old_mfile = gh_repo.get_contents(args.path, base_sha)
     except GithubException as e:
