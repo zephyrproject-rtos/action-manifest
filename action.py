@@ -10,6 +10,7 @@ import os
 import re
 import requests
 import sys
+import time
 from west.manifest import Manifest, ImportFlag
 
 NOTE = "\n\n*Note: This message is automatically posted and updated by the " \
@@ -22,7 +23,7 @@ def log(s):
         print(s, file=sys.stdout)
 
 def die(s):
-    print(s, file=sys.stderr)
+    print(f'ERROR: {s}', file=sys.stderr)
     sys.exit(1)
 
 def gh_tuple_split(s):
@@ -31,6 +32,33 @@ def gh_tuple_split(s):
         raise RuntimeError("Invalid org or dst format")
 
     return sl[0], sl[1]
+
+def get_merge_base(pr):
+    base_commit = pr.base.repo.get_commit(pr.base.sha)
+    head_commit = pr.head.repo.get_commit(pr.head.sha)
+
+    # This is a very naive implementation but should work fine in general
+    i = 10000
+    base_shas = list()
+    head_shas = list()
+    start = time.time()
+    while i:
+        base_shas.append(base_commit.sha)
+        head_shas.append(head_commit.sha)
+        for s in head_shas:
+            if s in base_shas:
+                end = time.time()
+                log(f'Found merge base {s} in {end - start:0.2f}s')
+                return s
+        base_parent = base_commit.parents
+        head_parent = head_commit.parents
+        if len(base_parent) != 1 or len(head_parent) != 1:
+            die('Multiple parents detected in a commit')
+        base_commit = base_parent[0]
+        head_commit = head_parent[0]
+        i = i - 1
+
+    die('Unable to find a merge base')
 
 # Taken from west:
 # https://github.com/zephyrproject-rtos/west/blob/99482c684528cdf76a843e04b83c34e49a2d8cf2/src/west/app/project.py#L1165
@@ -147,7 +175,6 @@ def main():
     with open(evt_path, 'r') as f:
         evt = json.load(f)
 
-    log(evt)
     pr = evt['pull_request']
 
     gh = Github(token)
@@ -167,8 +194,9 @@ def main():
         log('Manifest file {args.path} not modified by this Pull Request')
         sys.exit(0)
 
+    base_sha = get_merge_base(gh_pr)
     try:
-        old_mfile = gh_repo.get_contents(args.path, gh_pr.base.sha)
+        old_mfile = gh_repo.get_contents(args.path, base_sha)
     except GithubException as e:
         print('Base revision does not contain a valid manifest')
         exit(0)
