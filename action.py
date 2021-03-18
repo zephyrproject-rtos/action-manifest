@@ -123,11 +123,9 @@ def fmt_rev(repo, rev):
         if maybe_sha(rev):
             return repo.get_commit(rev).html_url
         elif rev in [t.name for t in repo.get_tags()]:
-            tag = next(filter(lambda t: t.name == rev, repo.get_tags()))
             # For some reason there's no way of getting the URL via API
             return f'{repo.html_url}/releases/tag/{rev}'
         elif rev in [b.name for b in repo.get_branches()]:
-            branch = repo.get_branch(rev)
             # For some reason there's no way of getting the URL via API
             return f'{repo.html_url}/tree/{rev}'
         else:
@@ -230,7 +228,6 @@ def main():
 
     gh = Github(token)
 
-    tk_usr = gh.get_user()
     gh_repo = gh.get_repo(org_repo)
     gh_pr = gh_repo.get_pull(int(pr['number']))
 
@@ -250,7 +247,7 @@ def main():
 
     try:
         old_mfile = gh_repo.get_contents(args.path, base_sha)
-    except GithubException as e:
+    except GithubException:
         print('Base revision does not contain a valid manifest')
         exit(0)
 
@@ -292,7 +289,7 @@ def main():
             try:
                 for l in dnm_labels:
                     gh_pr.remove_from_labels(l)
-            except GithubException as e:
+            except GithubException:
                 print('Unable to remove label')
         else:
             # Add the DNM labels
@@ -331,9 +328,6 @@ def main():
     if args.where == 'comment':
         comment = None
         for c in gh_pr.get_issue_comments():
-            # The line below only works with an OAuth token with write access, but
-            # it is not really needed.
-            #if c.user.login == tk_usr.login and NOTE in c.body:
             if NOTE in c.body:
                 comment = c
                 break
