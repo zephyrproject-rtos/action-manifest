@@ -310,7 +310,12 @@ def main():
         url = new_manifest.get_projects([p[0]])[0].url
         re_url = re.compile(r'https://github\.com/'
                              '([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?')
-        repo = gh.get_repo(re_url.match(url)[1])
+        try:
+            repo = gh.get_repo(re_url.match(url)[1])
+        except GithubException:
+            print(f"Can't get repo for {p[0]}; output will be limited")
+            strs.append(f'| {p[0]} | {old_rev} | {p[1]} |')
+            continue
 
         line = f'| {p[0]} | {fmt_rev(repo, old_rev)} '
         if p in pr_projs:
