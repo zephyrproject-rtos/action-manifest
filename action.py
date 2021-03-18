@@ -56,7 +56,7 @@ def git(*args, cwd=None):
         git_process = subprocess.Popen(
             git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
     except OSError as e:
-        err(f"failed to run '{cmd2str(git_cmd)}': {e}")
+        raise RuntimeError(f"failed to run '{cmd2str(git_cmd)}': {e}") from e
 
     stdout, stderr = git_process.communicate()
     stdout = stdout.decode("utf-8")
