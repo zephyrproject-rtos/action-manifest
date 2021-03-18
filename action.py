@@ -3,16 +3,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# standard library imports only here
 import argparse
-from github import Github, GithubException
 import json
 import os
 import re
-import requests
 import shlex
 import subprocess
 import sys
 import time
+
+# 3rd party imports go here
+import requests
+from github import Github, GithubException
 from west.manifest import Manifest, MalformedManifest, ImportFlag
 
 NOTE = "\n\n*Note: This message is automatically posted and updated by the " \
