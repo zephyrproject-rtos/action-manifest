@@ -273,7 +273,7 @@ def main():
         sys.exit(0)
 
     # Extract those that point to a PR
-    re_rev = re.compile(r'pull\/(\d+)\/head')
+    re_rev = re.compile(r'pull/(\d+)/head')
     pr_projs = set(filter(lambda p: re_rev.match(p[1]), projs))
     log(f'PR projects: {pr_projs}')
 
@@ -312,7 +312,7 @@ def main():
         old_rev = next(filter(lambda _p: _p[0] == p[0], old_projs))[1]
         url = new_manifest.get_projects([p[0]])[0].url
         re_url = re.compile(r'https://github\.com/'
-                             '([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/?')
+                             '([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?')
         repo = gh.get_repo(re_url.match(url)[1])
 
         line = f'| {p[0]} | {fmt_rev(repo, old_rev)} '
