@@ -317,9 +317,8 @@ def main():
             pr = repo.get_pull(int(re_rev.match(p[1])[1]))
             line += f'| {pr.html_url} |'
         else:
-            branches = list(map(lambda b: b.name,
-                            filter(lambda b: p[1] == b.commit.sha,
-                                   repo.get_branches())))
+            branches = [b.name for b in repo.get_branches()
+                        if p[1] == b.commit.sha]
             line += f'| {fmt_rev(repo, p[1])} '
             line += f'({",".join(branches)}) |' if len(branches) else '|'
         strs.append(line)
