@@ -20,7 +20,7 @@ from west.manifest import Manifest, MalformedManifest, ImportFlag
 
 NOTE = "\n\n*Note: This message is automatically posted and updated by the " \
        "Manifest GitHub Action.* "
- 
+
 _logging = 0
 
 def log(s):
@@ -149,7 +149,7 @@ def manifest_from_url(token, url):
         die(f'Failed to parse manifest from {url}: {e}')
 
     return manifest
- 
+
 def main():
 
     parser = argparse.ArgumentParser(
@@ -208,13 +208,13 @@ def main():
     org_repo = os.environ.get('GITHUB_REPOSITORY', None)
 
     log(f'Running action {action} from workflow {workflow} in {org_repo}')
-    
+
     evt_name = os.environ.get('GITHUB_EVENT_NAME', None)
     evt_path = os.environ.get('GITHUB_EVENT_PATH', None)
     workspace = os.environ.get('GITHUB_WORKSPACE', None)
 
     log(f'Event {evt_name} in {evt_path} and workspace {workspace}')
- 
+
     token = os.environ.get('GITHUB_TOKEN', None)
     if not token:
         sys.exit('Github token not set in environment, please set the '
