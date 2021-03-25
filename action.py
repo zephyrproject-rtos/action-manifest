@@ -314,8 +314,8 @@ def main():
         strs.append(message)
     strs.append('The following projects have a revision update in this Pull '
                 'Request:\n')
-    strs.append('| Name | Old Revision | New Revision |')
-    strs.append('| ---- | ------------ | ------------ |')
+    strs.append('| Name | Old Revision | New Revision | Diff |')
+    strs.append('| ---- | ------------ | ------------ |------|')
     # Sort in alphabetical order for the table
     for p in sorted(projs, key=lambda _p: _p[0]):
         old_rev = next(filter(lambda _p: _p[0] == p[0], old_projs))[1]
@@ -329,15 +329,22 @@ def main():
             strs.append(f'| {p[0]} | {old_rev} | {p[1]} |')
             continue
 
+        pr = repo.get_pull(
+            int(re_rev.match(p[1])[1])) if pr in pr_projs else None
+        branches = [b.name for b in repo.get_branches() if p[1] ==
+                    b.commit.sha]
+
         line = f'| {p[0]} | {fmt_rev(repo, old_rev)} '
-        if p in pr_projs:
-            pr = repo.get_pull(int(re_rev.match(p[1])[1]))
+        if pr:
             line += f'| {pr.html_url} |'
         else:
-            branches = [b.name for b in repo.get_branches()
-                        if p[1] == b.commit.sha]
             line += f'| {fmt_rev(repo, p[1])} '
             line += f'({",".join(branches)}) |' if len(branches) else '|'
+        if pr:
+            line += f'| {pr.html_url}/files |'
+        else:
+            line += f'| {repo.html_url/compare/{old_rev}..{p[1]} |'
+
         strs.append(line)
 
     message = '\n'.join(strs) + NOTE
