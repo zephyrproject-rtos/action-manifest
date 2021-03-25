@@ -23,13 +23,16 @@ NOTE = "\n\n*Note: This message is automatically posted and updated by the " \
 
 _logging = 0
 
+
 def log(s):
     if _logging:
         print(s, file=sys.stdout)
 
+
 def die(s):
     print(f'ERROR: {s}', file=sys.stderr)
     sys.exit(1)
+
 
 def gh_tuple_split(s):
     sl = s.split('/')
@@ -38,6 +41,7 @@ def gh_tuple_split(s):
 
     return sl[0], sl[1]
 
+
 def cmd2str(cmd):
     # Formats the command-line arguments in the iterable 'cmd' into a string,
     # for error messages and the like
@@ -45,6 +49,8 @@ def cmd2str(cmd):
     return " ".join(shlex.quote(word) for word in cmd)
 
 # Taken from Zephyr's check_compliance script
+
+
 def git(*args, cwd=None):
     # Helper for running a Git command. Returns the rstrip()ed stdout output.
     # Called like git("diff"). Exits with SystemError (raised by sys.exit()) on
@@ -71,6 +77,7 @@ to stderr.
 {stderr}""")
 
     return stdout.rstrip()
+
 
 def get_merge_base(pr, workspace, checkout):
 
@@ -108,6 +115,8 @@ def get_merge_base(pr, workspace, checkout):
 
 # Taken from west:
 # https://github.com/zephyrproject-rtos/west/blob/99482c684528cdf76a843e04b83c34e49a2d8cf2/src/west/app/project.py#L1165
+
+
 def maybe_sha(rev):
     # Return true if and only if the given revision might be a SHA.
 
@@ -117,6 +126,7 @@ def maybe_sha(rev):
         return False
 
     return len(rev) <= 40
+
 
 def fmt_rev(repo, rev):
     try:
@@ -133,6 +143,7 @@ def fmt_rev(repo, rev):
     except GithubException:
         return rev
 
+
 def manifest_from_url(token, url):
 
     log(f'Creating manifest from {url}')
@@ -147,6 +158,7 @@ def manifest_from_url(token, url):
         die(f'Failed to parse manifest from {url}: {e}')
 
     return manifest
+
 
 def main():
 
@@ -195,9 +207,9 @@ def main():
     message = args.message if args.message != 'none' else None
     checkout = args.checkout_path if args.checkout_path != 'none' else None
     labels = [x.strip() for x in args.labels.split(',')] \
-             if args.labels != 'none' else None
+        if args.labels != 'none' else None
     dnm_labels = [x.strip() for x in args.dnm_labels.split(',')] \
-             if args.dnm_labels != 'none' else None
+        if args.dnm_labels != 'none' else None
     label_prefix = args.label_prefix if args.label_prefix != 'none' else None
 
     # Retrieve main env vars
@@ -309,7 +321,7 @@ def main():
         old_rev = next(filter(lambda _p: _p[0] == p[0], old_projs))[1]
         url = new_manifest.get_projects([p[0]])[0].url
         re_url = re.compile(r'https://github\.com/'
-                             '([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?')
+                            '([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?')
         try:
             repo = gh.get_repo(re_url.match(url)[1])
         except GithubException:
@@ -346,6 +358,7 @@ def main():
         gh_pr.edit(body=gh_pr.body + '\n\n----\n\n' + message)
 
     sys.exit(0)
+
 
 if __name__ == '__main__':
     main()
