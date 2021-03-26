@@ -129,19 +129,34 @@ def maybe_sha(rev):
 
 
 def fmt_rev(repo, rev):
+    if not rev:
+        return 'N/A'
+
     try:
         if maybe_sha(rev):
-            return repo.get_commit(rev).html_url
+            branches = [b.name for b in repo.get_branches() if rev ==
+                        b.commit.sha]
+            s = repo.get_commit(rev).html_url
+            # commits get formatted nicely by GitHub itself
+            return s + f' ({",".join(branches)})' if len(branches) else s
         elif rev in [t.name for t in repo.get_tags()]:
             # For some reason there's no way of getting the URL via API
-            return f'{repo.html_url}/releases/tag/{rev}'
+            s = f'{repo.html_url}/releases/tag/{rev}'
         elif rev in [b.name for b in repo.get_branches()]:
             # For some reason there's no way of getting the URL via API
-            return f'{repo.html_url}/tree/{rev}'
+            s = f'{repo.html_url}/tree/{rev}'
         else:
             return rev
     except GithubException:
         return rev
+
+    return f'[{repo.full_name}@{rev}]({s})'
+
+
+def shorten_rev(rev):
+    if maybe_sha(rev):
+        return rev[:8]
+    return rev
 
 
 def manifest_from_url(token, url):
@@ -271,19 +286,32 @@ def main():
     log(f'old_projs: {old_projs}')
     log(f'new_projs: {new_projs}')
 
-    # List all existing projects that have changed revision, but not name.
-    # If a project has changed name or is new, it is not handled for now.
-    projs = set(filter(lambda p: p[0] in list(p[0] for p in old_projs),
-                       new_projs - old_projs))
-    log(f'projs: {projs}')
+    # Symmetric difference: everything that is not in both
+
+    # Removed projects
+    rprojs = set(filter(lambda p: p[0] not in list(p[0] for p in new_projs),
+                        old_projs - new_projs))
+    # Updated projects
+    uprojs = set(filter(lambda p: p[0] in list(p[0] for p in old_projs),
+                        new_projs - old_projs))
+    # Added projects
+    aprojs = new_projs - old_projs - uprojs
+
+    # All projs
+    projs = rprojs | uprojs | aprojs
+
+    log(f'rprojs: {rprojs}')
+    log(f'uprojs: {uprojs}')
+    log(f'aprojs: {aprojs}')
 
     if not len(projs):
-        log('No projects updating revision')
+        log('No projects updated')
         sys.exit(0)
 
     # Extract those that point to a PR
     re_rev = re.compile(r'pull/(\d+)/head')
-    pr_projs = set(filter(lambda p: re_rev.match(p[1]), projs))
+    # Revision cannot be a PR in a removed project
+    pr_projs = set(filter(lambda p: re_rev.match(p[1]), uprojs | aprojs))
     log(f'PR projects: {pr_projs}')
 
     # Set labels
@@ -312,38 +340,41 @@ def main():
     strs = list()
     if message:
         strs.append(message)
-    strs.append('The following projects have a revision update in this Pull '
+    strs.append('The following west manifest projects have been modified in this Pull '
                 'Request:\n')
     strs.append('| Name | Old Revision | New Revision | Diff |')
     strs.append('| ---- | ------------ | ------------ |------|')
     # Sort in alphabetical order for the table
     for p in sorted(projs, key=lambda _p: _p[0]):
-        old_rev = next(filter(lambda _p: _p[0] == p[0], old_projs))[1]
-        url = new_manifest.get_projects([p[0]])[0].url
+        log(f'Processing project {p[0]}')
+        manifest = old_manifest if p in rprojs else new_manifest
+        old_rev = None if p in aprojs else next(
+            filter(lambda _p: _p[0] == p[0], old_projs))[1]
+        new_rev = None if p in rprojs else p[1]
+        url = manifest.get_projects([p[0]])[0].url
         re_url = re.compile(r'https://github\.com/'
                             '([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?')
         try:
             repo = gh.get_repo(re_url.match(url)[1])
         except GithubException:
             print(f"Can't get repo for {p[0]}; output will be limited")
-            strs.append(f'| {p[0]} | {old_rev} | {p[1]} |')
+            strs.append(f'| {p[0]} | {old_rev} | {new_rev} | N/A |')
             continue
 
-        pr = repo.get_pull(
-            int(re_rev.match(p[1])[1])) if pr in pr_projs else None
-        branches = [b.name for b in repo.get_branches() if p[1] ==
-                    b.commit.sha]
-
         line = f'| {p[0]} | {fmt_rev(repo, old_rev)} '
-        if pr:
-            line += f'| {pr.html_url} |'
+        if p in pr_projs:
+            pr = repo.get_pull(int(re_rev.match(new_rev)[1]))
+            line += f'| {pr.html_url} '
+            line += f'| [{repo.full_name}#{pr.number}/files]' + \
+                    f'({pr.html_url}/files) |'
         else:
-            line += f'| {fmt_rev(repo, p[1])} '
-            line += f'({",".join(branches)}) |' if len(branches) else '|'
-        if pr:
-            line += f'| {pr.html_url}/files |'
-        else:
-            line += f'| {repo.html_url/compare/{old_rev}..{p[1]} |'
+            line += f'| {fmt_rev(repo, new_rev)} '
+            if p in uprojs:
+                line += f'| [{repo.full_name}@{shorten_rev(old_rev)}..' + \
+                        f'{shorten_rev(new_rev)}]' + \
+                        f'({repo.html_url}/compare/{old_rev}..{new_rev}) |'
+            else:
+                line += '| N/A |'
 
         strs.append(line)
 
