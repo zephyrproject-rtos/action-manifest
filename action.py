@@ -297,6 +297,7 @@ def main():
 
     # All projs
     projs = rprojs | uprojs | aprojs
+    projs_names = [name for name, rev in projs]
 
     log(f'rprojs: {rprojs}')
     log(f'uprojs: {uprojs}')
@@ -312,9 +313,18 @@ def main():
     pr_projs = set(filter(lambda p: re_rev.match(p[1]), uprojs | aprojs))
     log(f'PR projects: {pr_projs}')
 
+    log(str(projs_names))
+    log(f"labels: {str(labels)}")
+
+    # Parse a list of labels given as '--labels ...' and return the ones that should be added to the PR.
+    def get_relevant_labels(label_list):
+        get_modules = lambda l: map(str.strip, l.split(':')[1].split(';'))
+        is_relevant = lambda l: len(set(get_modules(l)).intersection(projs_names)) != 0
+        return [l.split(':')[0].strip() for l in label_list if ':' not in l or is_relevant(l)]
+
     # Set labels
     if labels:
-        for l in labels:
+        for l in get_relevant_labels(labels):
             gh_pr.add_to_labels(l)
 
     if label_prefix:

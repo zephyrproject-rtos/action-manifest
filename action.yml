@@ -22,7 +22,14 @@ inputs:
     required: false
     default: 'comment'
   labels:
-    description: 'Comma-separated list of labels.'
+    description: |
+      Comma-separated list of labels with optional module name filter:
+        <label>[:<module-name>[;<module-name>[;...]]]'
+      Example:
+        labels: 'test-bootloader:bootloader;hal;drivers, foo:bar;baz;drivers'
+      This will add the 'test-bootloader' label when the bootloader, hal,
+      or drivers module is changed, and add the 'foo' label if the bar, baz,
+      or drivers module is changed.
     required: false
     default: 'none'
   dnm-labels:
