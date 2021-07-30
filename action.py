@@ -166,7 +166,7 @@ def manifest_from_url(token, url):
     req = requests.get(url=url, headers=header)
     try:
         manifest = Manifest.from_data(req.content.decode(),
-                                      import_flags=ImportFlag.IGNORE_PROJECTS)
+                                      import_flags=ImportFlag.IGNORE)
     except MalformedManifest as e:
         die(f'Failed to parse manifest from {url}: {e}')
 
