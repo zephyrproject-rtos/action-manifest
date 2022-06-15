@@ -58,6 +58,7 @@ def git(*args, cwd=None):
     # directory).
 
     git_cmd = ("git",) + args
+    log(f'Executing git cmd {git_cmd}')
     try:
         git_process = subprocess.Popen(
             git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
@@ -164,12 +165,15 @@ def manifest_from_url(token, url):
     # Download manifest file
     header = {'Authorization': f'token {token}'}
     req = requests.get(url=url, headers=header)
+    raw_manifest = req.content.decode()
+    log(f'Manifest.from_data()')
     try:
-        manifest = Manifest.from_data(req.content.decode(),
+        manifest = Manifest.from_data(raw_manifest,
                                       import_flags=ImportFlag.IGNORE)
     except MalformedManifest as e:
         die(f'Failed to parse manifest from {url}: {e}')
 
+    log(f'Created manifest {manifest}')
     return manifest
 
 
