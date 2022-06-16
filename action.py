@@ -158,14 +158,17 @@ def shorten_rev(rev):
         return rev[:8]
     return rev
 
+def request(token, url):
+    header = {'Authorization': f'token {token}'}
+    req = requests.get(url=url, headers=header)
+    return req
+
 def manifest_from_url(token, url):
 
     log(f'Creating manifest from {url}')
 
     # Download manifest file
-    header = {'Authorization': f'token {token}'}
-    req = requests.get(url=url, headers=header)
-    raw_manifest = req.content.decode()
+    raw_manifest = request(token, url).content.decode()
     log(f'Manifest.from_data()')
     try:
         manifest = Manifest.from_data(raw_manifest,
@@ -271,6 +274,12 @@ def main():
         log('Manifest file {args.path} not modified by this Pull Request')
         sys.exit(0)
 
+    # When authorization is enabled we require a
+    # raw.githubusercontent.com/..?token= style URL (aka download_url) but
+    # new_mfile.raw_url gives us a <repo>/raw/<sha> style URL
+    new_mfile_cont = request(token, url=new_mfile.contents_url).content.decode()
+    new_mfile_durl = json.loads(new_mfile_cont)['download_url']
+
     base_sha = get_merge_base(gh_pr, workspace, checkout)
     log(f'PR base SHA: {gh_pr.base.sha} merge-base SHA: {base_sha}')
 
@@ -281,7 +290,7 @@ def main():
         exit(0)
 
     old_manifest = manifest_from_url(token, old_mfile.download_url)
-    new_manifest = manifest_from_url(token, new_mfile.raw_url)
+    new_manifest = manifest_from_url(token, new_mfile_durl)
 
     old_projs = set((p.name, p.revision) for p in old_manifest.projects)
     new_projs = set((p.name, p.revision) for p in new_manifest.projects)
