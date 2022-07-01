@@ -345,7 +345,7 @@ def main():
             gh_pr.add_to_labels(f'{label_prefix}{p[0]}')
 
     if dnm_labels:
-        if not len(pr_projs):
+        if not len(aprojs) and not len(pr_projs):
             # Remove the DNM labels
             try:
                 for l in dnm_labels:
