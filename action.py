@@ -321,7 +321,7 @@ def main():
         sys.exit(0)
 
     # Extract those that point to a PR
-    re_rev = re.compile(r'pull/(\d+)/head')
+    re_rev = re.compile(r'(?:refs/)?pull/(\d+)/head')
     # Revision cannot be a PR in a removed project
     pr_projs = set(filter(lambda p: re_rev.match(p[1]), uprojs | aprojs))
     log(f'PR projects: {pr_projs}')
