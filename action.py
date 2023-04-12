@@ -377,7 +377,8 @@ def main():
                             '([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?')
         try:
             repo = gh.get_repo(re_url.match(url)[1])
-        except GithubException:
+        except (GithubException, TypeError) as error:
+            print(error)
             print(f"Can't get repo for {p[0]}; output will be limited")
             strs.append(f'| {p[0]} | {old_rev} | {new_rev} | N/A |')
             continue
