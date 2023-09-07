@@ -13,6 +13,10 @@ inputs:
     description: 'The path to the checked out Pull Request'
     default: 'none'
     required: false
+  use-tree-checkout:
+    description: 'If true, comparison will be made on Git tree checkouts'
+    default: 'false'
+    required: false
   message:
     description: 'Message to post'
     required: false
@@ -55,7 +59,7 @@ runs:
            --checkout-path "${{ inputs.checkout-path}}" -m "${{ inputs.message }}" \
            -l "${{ inputs.labels }}" --label-prefix "${{ inputs.label-prefix }}" \
            --dnm-labels "${{ inputs.dnm-labels }}" --where "${{ inputs.where }}" \
-           -v "${{ inputs.verbosity-level }}"
+           -v "${{ inputs.verbosity-level }}" --use-tree-checkout "${{ inputs.use-tree-checkout }}"
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
