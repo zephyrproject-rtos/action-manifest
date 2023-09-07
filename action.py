@@ -7,6 +7,7 @@
 import argparse
 import json
 import os
+from pathlib import Path
 import re
 import shlex
 import subprocess
@@ -80,12 +81,11 @@ to stderr.
     return stdout.rstrip()
 
 
-def get_merge_base(pr, workspace, checkout):
+def get_merge_base(pr, checkout):
 
     if checkout:
-        cwd = os.path.join(workspace, checkout)
-        log(f'Using git merge-base in {cwd}')
-        sha = git('merge-base', pr.base.sha,  pr.head.sha, cwd=cwd)
+        log(f'Using git merge-base in {checkout}')
+        sha = git('merge-base', pr.base.sha,  pr.head.sha, cwd=checkout)
         log(f'Found merge base {sha} with git')
         return sha
 
@@ -179,6 +179,45 @@ def manifest_from_url(token, url):
     log(f'Created manifest {manifest}')
     return manifest
 
+def _get_manifests_from_gh(token, gh_repo, new_mfile, base_sha):
+    # When authorization is enabled we require a
+    # raw.githubusercontent.com/..?token= style URL (aka download_url) but
+    # new_mfile.raw_url gives us a <repo>/raw/<sha> style URL
+    new_mfile_cont = request(token, url=new_mfile.contents_url).content.decode()
+    new_mfile_durl = json.loads(new_mfile_cont)['download_url']
+
+    try:
+        old_mfile = gh_repo.get_contents(new_mfile.filename, base_sha)
+    except GithubException:
+        print('Base revision does not contain a valid manifest')
+        exit(0)
+
+    old_manifest = manifest_from_url(token, old_mfile.download_url)
+    new_manifest = manifest_from_url(token, new_mfile_durl)
+
+    return (old_manifest, new_manifest)
+
+def _get_manifests_from_tree(mfile, gh_pr, checkout, base_sha):
+    # Check if current tree is at the right location
+
+    mfile = (Path(checkout) / Path(mfile)).resolve()
+
+    cur_sha = git('rev-parse', 'HEAD', cwd=checkout)
+    if cur_sha != gh_pr.head.sha:
+        sys_exit(f'Current SHA {sha} is different from head.sha {gh_pr.head.sha}')
+
+    def manifest_at_rev(sha):
+        cur_sha = git('rev-parse', 'HEAD', cwd=checkout)
+        if cur_sha != sha:
+            # Use --quiet to avoid Git writing a warning about a commit left
+            # behind in stderr
+            git('checkout', '--quiet', '--detach', sha, cwd=checkout)
+        return Manifest.from_file(mfile)
+
+    old_manifest = manifest_at_rev(base_sha)
+    new_manifest = manifest_at_rev(gh_pr.head.sha)
+
+    return (old_manifest, new_manifest)
 
 def main():
 
@@ -196,6 +235,10 @@ def main():
     parser.add_argument('--checkout-path', action='store',
                         required=False,
                         help='Path to the checked out PR.')
+
+    parser.add_argument('--use-tree-checkout', action='store',
+                        required=False,
+                        help='Use a checked-out tree to parse the manifests.')
 
     parser.add_argument('-l', '--labels', action='store',
                         required=False,
@@ -226,11 +269,15 @@ def main():
 
     message = args.message if args.message != 'none' else None
     checkout = args.checkout_path if args.checkout_path != 'none' else None
+    use_tree = args.use_tree_checkout != 'false'
     labels = [x.strip() for x in args.labels.split(',')] \
         if args.labels != 'none' else None
     dnm_labels = [x.strip() for x in args.dnm_labels.split(',')] \
         if args.dnm_labels != 'none' else None
     label_prefix = args.label_prefix if args.label_prefix != 'none' else None
+
+    if use_tree and not checkout:
+        sys_exit("Cannot use a tree checkout without a checkout path")
 
     # Retrieve main env vars
     action = os.environ.get('GITHUB_ACTION', None)
@@ -242,6 +289,9 @@ def main():
     evt_name = os.environ.get('GITHUB_EVENT_NAME', None)
     evt_path = os.environ.get('GITHUB_EVENT_PATH', None)
     workspace = os.environ.get('GITHUB_WORKSPACE', None)
+    
+    # Abs path to checked-out tree
+    checkout = (Path(workspace) / Path(checkout)).resolve() if checkout else None
 
     log(f'Event {evt_name} in {evt_path} and workspace {workspace}')
 
@@ -274,23 +324,17 @@ def main():
         log('Manifest file {args.path} not modified by this Pull Request')
         sys.exit(0)
 
-    # When authorization is enabled we require a
-    # raw.githubusercontent.com/..?token= style URL (aka download_url) but
-    # new_mfile.raw_url gives us a <repo>/raw/<sha> style URL
-    new_mfile_cont = request(token, url=new_mfile.contents_url).content.decode()
-    new_mfile_durl = json.loads(new_mfile_cont)['download_url']
-
-    base_sha = get_merge_base(gh_pr, workspace, checkout)
+    base_sha = get_merge_base(gh_pr, checkout)
     log(f'PR base SHA: {gh_pr.base.sha} merge-base SHA: {base_sha}')
 
-    try:
-        old_mfile = gh_repo.get_contents(args.path, base_sha)
-    except GithubException:
-        print('Base revision does not contain a valid manifest')
-        exit(0)
-
-    old_manifest = manifest_from_url(token, old_mfile.download_url)
-    new_manifest = manifest_from_url(token, new_mfile_durl)
+    if use_tree:
+        (old_manifest, new_manifest) = _get_manifests_from_tree(new_mfile.filename,
+                                                                gh_pr, checkout,
+                                                                base_sha)
+    else:
+        (old_manifest, new_manifest) = _get_manifests_from_gh(token, gh_repo,
+                                                              new_mfile,
+                                                              base_sha)
 
     old_projs = set((p.name, p.revision) for p in old_manifest.projects)
     new_projs = set((p.name, p.revision) for p in new_manifest.projects)
