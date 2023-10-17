@@ -321,7 +321,7 @@ def main():
             break
 
     if not new_mfile:
-        log('Manifest file {args.path} not modified by this Pull Request')
+        log(f'Manifest file {args.path} not modified by this Pull Request')
         sys.exit(0)
 
     base_sha = get_merge_base(gh_pr, checkout)
