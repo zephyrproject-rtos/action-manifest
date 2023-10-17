@@ -179,28 +179,33 @@ def manifest_from_url(token, url):
     log(f'Created manifest {manifest}')
     return manifest
 
-def _get_manifests_from_gh(token, gh_repo, new_mfile, base_sha):
-    # When authorization is enabled we require a
-    # raw.githubusercontent.com/..?token= style URL (aka download_url) but
-    # new_mfile.raw_url gives us a <repo>/raw/<sha> style URL
-    new_mfile_cont = request(token, url=new_mfile.contents_url).content.decode()
-    new_mfile_durl = json.loads(new_mfile_cont)['download_url']
+def _get_manifests_from_gh(token, gh_repo, mpath, new_mfile, base_sha):
 
     try:
-        old_mfile = gh_repo.get_contents(new_mfile.filename, base_sha)
+        old_mfile = gh_repo.get_contents(mpath, base_sha)
     except GithubException:
         print('Base revision does not contain a valid manifest')
         exit(0)
 
     old_manifest = manifest_from_url(token, old_mfile.download_url)
-    new_manifest = manifest_from_url(token, new_mfile_durl)
+
+    if new_mfile:
+        # When authorization is enabled we require a
+        # raw.githubusercontent.com/..?token= style URL (aka download_url) but
+        # new_mfile.raw_url gives us a <repo>/raw/<sha> style URL
+        new_mfile_cont = request(token, url=new_mfile.contents_url).content.decode()
+        new_mfile_durl = json.loads(new_mfile_cont)['download_url']
+        new_manifest = manifest_from_url(token, new_mfile_durl)
+    else:
+        # No change in manifest, run the checks anyway on the same manifest
+        new_manifest = old_manifest
 
     return (old_manifest, new_manifest)
 
-def _get_manifests_from_tree(mfile, gh_pr, checkout, base_sha):
+def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha):
     # Check if current tree is at the right location
 
-    mfile = (Path(checkout) / Path(mfile)).resolve()
+    mfile = (Path(checkout) / Path(mpath)).resolve()
 
     cur_sha = git('rev-parse', 'HEAD', cwd=checkout)
     if cur_sha != gh_pr.head.sha:
@@ -313,6 +318,7 @@ def main():
     gh_repo = gh.get_repo(org_repo)
     gh_pr = gh_repo.get_pull(int(pr['number']))
 
+    mpath = args.path
     new_mfile = None
     for f in gh_pr.get_files():
         if f.filename == args.path:
@@ -322,18 +328,17 @@ def main():
 
     if not new_mfile:
         log(f'Manifest file {args.path} not modified by this Pull Request')
-        sys.exit(0)
 
     base_sha = get_merge_base(gh_pr, checkout)
     log(f'PR base SHA: {gh_pr.base.sha} merge-base SHA: {base_sha}')
 
     if use_tree:
-        (old_manifest, new_manifest) = _get_manifests_from_tree(new_mfile.filename,
+        (old_manifest, new_manifest) = _get_manifests_from_tree(mpath,
                                                                 gh_pr, checkout,
                                                                 base_sha)
     else:
         (old_manifest, new_manifest) = _get_manifests_from_gh(token, gh_repo,
-                                                              new_mfile,
+                                                              mpath, new_mfile,
                                                               base_sha)
 
     old_projs = set((p.name, p.revision) for p in old_manifest.projects)
@@ -362,7 +367,6 @@ def main():
 
     if not len(projs):
         log('No projects updated')
-        sys.exit(0)
 
     # Extract those that point to a PR
     re_rev = re.compile(r'(?:refs/)?pull/(\d+)/head')
@@ -379,14 +383,28 @@ def main():
         is_relevant = lambda l: len(set(get_modules(l)).intersection(projs_names)) != 0
         return [l.split(':')[0].strip() for l in label_list if ':' not in l or is_relevant(l)]
 
-    # Set labels
+    # Set or unset labels
     if labels:
         for l in get_relevant_labels(labels):
-            gh_pr.add_to_labels(l)
+            if len(projs):
+                gh_pr.add_to_labels(l)
+            else:
+                try:
+                    gh_pr.remove_from_labels(l)
+                except GithubException:
+                    print('Unable to remove label {l}')
 
     if label_prefix:
         for p in projs:
             gh_pr.add_to_labels(f'{label_prefix}{p[0]}')
+        if not len(projs):
+            for l in gh_pr.get_labels():
+                if l.name.startswith(label_prefix):
+                    # Remove existing label
+                    try:
+                        gh_pr.remove_from_labels(l)
+                    except GithubException:
+                        print('Unable to remove prefixed label')
 
     if dnm_labels:
         if not len(aprojs) and not len(pr_projs):
@@ -395,8 +413,8 @@ def main():
                 for l in dnm_labels:
                     gh_pr.remove_from_labels(l)
             except GithubException:
-                print('Unable to remove label')
-        else:
+                print('Unable to remove DNM label')
+        elif len(projs):
             # Add the DNM labels
             for l in dnm_labels:
                 gh_pr.add_to_labels(l)
@@ -453,8 +471,11 @@ def main():
                 break
 
         if not comment:
-            print('Creating comment')
-            gh_pr.create_issue_comment(message)
+            if len(projs):
+                print('Creating comment')
+                gh_pr.create_issue_comment(message)
+            else:
+                print('Skipping comment creation, no manifest changes')
         else:
             print('Updating comment')
             comment.edit(message)
