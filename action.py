@@ -375,54 +375,6 @@ def main():
     log(f'PR projects: {pr_projs}')
 
     log(f'projs_names: {str(projs_names)}')
-    log(f"labels: {str(labels)}")
-
-    # Parse a list of labels given as '--labels ...' and return the ones that should be added to the PR.
-    def get_relevant_labels(label_list):
-        get_modules = lambda l: map(str.strip, l.split(':')[1].split(';'))
-        is_relevant = lambda l: len(set(get_modules(l)).intersection(projs_names)) != 0
-        return [l.split(':')[0].strip() for l in label_list if ':' not in l or is_relevant(l)]
-
-    # Set or unset labels
-    if labels:
-        for l in get_relevant_labels(labels):
-            if len(projs):
-                log(f'adding label {l}')
-                gh_pr.add_to_labels(l)
-            else:
-                try:
-                    log(f'removing label {l}')
-                    gh_pr.remove_from_labels(l)
-                except GithubException:
-                    print(f'Unable to remove label {l}')
-
-    if label_prefix:
-        for p in projs:
-            gh_pr.add_to_labels(f'{label_prefix}{p[0]}')
-        if not len(projs):
-            for l in gh_pr.get_labels():
-                if l.name.startswith(label_prefix):
-                    # Remove existing label
-                    try:
-                        log(f'removing label {l}')
-                        gh_pr.remove_from_labels(l)
-                    except GithubException:
-                        print(f'Unable to remove prefixed label {l}')
-
-    if dnm_labels:
-        if not len(aprojs) and not len(pr_projs):
-            # Remove the DNM labels
-            try:
-                for l in dnm_labels:
-                    log(f'removing label {l}')
-                    gh_pr.remove_from_labels(l)
-            except GithubException:
-                print('Unable to remove DNM label')
-        elif len(projs):
-            # Add the DNM labels
-            for l in dnm_labels:
-                log(f'adding label {l}')
-                gh_pr.add_to_labels(l)
 
     # Link main PR to project PRs
     strs = list()
@@ -486,6 +438,56 @@ def main():
             comment.edit(message)
     else:
         gh_pr.edit(body=gh_pr.body + '\n\n----\n\n' + message)
+
+    # Now onto labels
+    log(f"labels: {str(labels)}")
+
+    # Parse a list of labels given as '--labels ...' and return the ones that should be added to the PR.
+    def get_relevant_labels(label_list):
+        get_modules = lambda l: map(str.strip, l.split(':')[1].split(';'))
+        is_relevant = lambda l: len(set(get_modules(l)).intersection(projs_names)) != 0
+        return [l.split(':')[0].strip() for l in label_list if ':' not in l or is_relevant(l)]
+
+    # Set or unset labels
+    if labels:
+        for l in get_relevant_labels(labels):
+            if len(projs):
+                log(f'adding label {l}')
+                gh_pr.add_to_labels(l)
+            else:
+                try:
+                    log(f'removing label {l}')
+                    gh_pr.remove_from_labels(l)
+                except GithubException:
+                    print(f'Unable to remove label {l}')
+
+    if label_prefix:
+        for p in projs:
+            gh_pr.add_to_labels(f'{label_prefix}{p[0]}')
+        if not len(projs):
+            for l in gh_pr.get_labels():
+                if l.name.startswith(label_prefix):
+                    # Remove existing label
+                    try:
+                        log(f'removing label {l}')
+                        gh_pr.remove_from_labels(l)
+                    except GithubException:
+                        print(f'Unable to remove prefixed label {l}')
+
+    if dnm_labels:
+        if not len(aprojs) and not len(pr_projs):
+            # Remove the DNM labels
+            try:
+                for l in dnm_labels:
+                    log(f'removing label {l}')
+                    gh_pr.remove_from_labels(l)
+            except GithubException:
+                print('Unable to remove DNM label')
+        elif len(projs):
+            # Add the DNM labels
+            for l in dnm_labels:
+                log(f'adding label {l}')
+                gh_pr.add_to_labels(l)
 
     sys.exit(0)
 
