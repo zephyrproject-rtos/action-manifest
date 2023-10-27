@@ -475,7 +475,7 @@ def main():
                         print(f'Unable to remove prefixed label {l}')
 
     if dnm_labels:
-        if not len(aprojs) and not len(pr_projs):
+        if comment and (not len(aprojs) and not len(pr_projs)):
             # Remove the DNM labels
             try:
                 for l in dnm_labels:
