@@ -374,7 +374,7 @@ def main():
     pr_projs = set(filter(lambda p: re_rev.match(p[1]), uprojs | aprojs))
     log(f'PR projects: {pr_projs}')
 
-    log(str(projs_names))
+    log(f'projs_names: {str(projs_names)}')
     log(f"labels: {str(labels)}")
 
     # Parse a list of labels given as '--labels ...' and return the ones that should be added to the PR.
@@ -387,12 +387,14 @@ def main():
     if labels:
         for l in get_relevant_labels(labels):
             if len(projs):
+                log(f'adding label {l}')
                 gh_pr.add_to_labels(l)
             else:
                 try:
+                    log(f'removing label {l}')
                     gh_pr.remove_from_labels(l)
                 except GithubException:
-                    print('Unable to remove label {l}')
+                    print(f'Unable to remove label {l}')
 
     if label_prefix:
         for p in projs:
@@ -402,21 +404,24 @@ def main():
                 if l.name.startswith(label_prefix):
                     # Remove existing label
                     try:
+                        log(f'removing label {l}')
                         gh_pr.remove_from_labels(l)
                     except GithubException:
-                        print('Unable to remove prefixed label')
+                        print(f'Unable to remove prefixed label {l}')
 
     if dnm_labels:
         if not len(aprojs) and not len(pr_projs):
             # Remove the DNM labels
             try:
                 for l in dnm_labels:
+                    log(f'removing label {l}')
                     gh_pr.remove_from_labels(l)
             except GithubException:
                 print('Unable to remove DNM label')
         elif len(projs):
             # Add the DNM labels
             for l in dnm_labels:
+                log(f'adding label {l}')
                 gh_pr.add_to_labels(l)
 
     # Link main PR to project PRs
