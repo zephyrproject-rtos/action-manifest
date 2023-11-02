@@ -432,6 +432,10 @@ def main():
         print('Updating comment')
         comment.edit(message)
 
+    if not comment:
+        log(f'PR not modifying or having modified west projects, exiting early')
+        sys.exit(0)
+
     # Now onto labels
     log(f"labels: {str(labels)}")
 
@@ -468,7 +472,7 @@ def main():
                         print(f'Unable to remove prefixed label {l}')
 
     if dnm_labels:
-        if comment and (not len(aprojs) and not len(pr_projs)):
+        if not len(aprojs) and not len(pr_projs):
             # Remove the DNM labels
             try:
                 for l in dnm_labels:
@@ -476,7 +480,7 @@ def main():
                     gh_pr.remove_from_labels(l)
             except GithubException:
                 print('Unable to remove DNM label')
-        elif len(projs):
+        else:
             # Add the DNM labels
             for l in dnm_labels:
                 log(f'adding label {l}')
