@@ -257,10 +257,6 @@ def main():
                         required=False,
                         help='Label prefix.')
 
-    parser.add_argument('--where', action='store',
-                        choices=('comment', 'description'),
-                        required=True, help='Where to post.')
-
     parser.add_argument('-v', '--verbose-level', action='store',
                         type=int, default=0, choices=range(0, 2),
                         required=False, help='Verbosity level.')
@@ -420,24 +416,21 @@ def main():
         strs.append(line)
 
     message = '\n'.join(strs) + NOTE
-    if args.where == 'comment':
-        comment = None
-        for c in gh_pr.get_issue_comments():
-            if NOTE in c.body:
-                comment = c
-                break
+    comment = None
+    for c in gh_pr.get_issue_comments():
+        if NOTE in c.body:
+            comment = c
+            break
 
-        if not comment:
-            if len(projs):
-                print('Creating comment')
-                comment = gh_pr.create_issue_comment(message)
-            else:
-                print('Skipping comment creation, no manifest changes')
+    if not comment:
+        if len(projs):
+            print('Creating comment')
+            comment = gh_pr.create_issue_comment(message)
         else:
-            print('Updating comment')
-            comment.edit(message)
+            print('Skipping comment creation, no manifest changes')
     else:
-        gh_pr.edit(body=gh_pr.body + '\n\n----\n\n' + message)
+        print('Updating comment')
+        comment.edit(message)
 
     # Now onto labels
     log(f"labels: {str(labels)}")

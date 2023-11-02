@@ -21,10 +21,6 @@ inputs:
     description: 'Message to post'
     required: false
     default: 'none'
-  where:
-    description: 'Where to post the message. Use comment or description'
-    required: false
-    default: 'comment'
   labels:
     description: |
       Comma-separated list of labels with optional module name filter:
@@ -58,8 +54,8 @@ runs:
            python3 ${{ github.action_path }}/action.py -p "${{ inputs.manifest-path }}" \
            --checkout-path "${{ inputs.checkout-path}}" -m "${{ inputs.message }}" \
            -l "${{ inputs.labels }}" --label-prefix "${{ inputs.label-prefix }}" \
-           --dnm-labels "${{ inputs.dnm-labels }}" --where "${{ inputs.where }}" \
-           -v "${{ inputs.verbosity-level }}" --use-tree-checkout "${{ inputs.use-tree-checkout }}"
+           --dnm-labels "${{ inputs.dnm-labels }}"  -v "${{ inputs.verbosity-level }}" \
+           --use-tree-checkout "${{ inputs.use-tree-checkout }}"
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
