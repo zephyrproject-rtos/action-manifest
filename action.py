@@ -430,7 +430,7 @@ def main():
         if not comment:
             if len(projs):
                 print('Creating comment')
-                gh_pr.create_issue_comment(message)
+                comment = gh_pr.create_issue_comment(message)
             else:
                 print('Skipping comment creation, no manifest changes')
         else:
