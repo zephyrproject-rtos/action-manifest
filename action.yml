@@ -17,6 +17,10 @@ inputs:
     description: 'If true, comparison will be made on Git tree checkouts'
     default: 'false'
     required: false
+  check-impostor-commits:
+    description: 'If true, a check for impostor commits will be performed'
+    default: 'false'
+    required: false
   message:
     description: 'Message to post'
     required: false
@@ -55,7 +59,8 @@ runs:
            --checkout-path "${{ inputs.checkout-path}}" -m "${{ inputs.message }}" \
            -l "${{ inputs.labels }}" --label-prefix "${{ inputs.label-prefix }}" \
            --dnm-labels "${{ inputs.dnm-labels }}"  -v "${{ inputs.verbosity-level }}" \
-           --use-tree-checkout "${{ inputs.use-tree-checkout }}"
+           --use-tree-checkout "${{ inputs.use-tree-checkout }}" \
+           --check-impostor-commits "${{ inputs.check-impostor-commits }}"
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
