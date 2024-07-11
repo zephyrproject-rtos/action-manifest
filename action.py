@@ -128,6 +128,32 @@ def maybe_sha(rev):
 
     return len(rev) <= 40
 
+def is_impostor(repo, rev):
+
+    def compare(base, head):
+        c = repo.compare(base, head)
+        return c.status in ('behind', 'identical')
+
+    if not rev:
+        log('is_impostor: revision is None')
+        return True
+
+    if not maybe_sha(rev):
+        log('is_impostor: not a SHA')
+        return False
+
+    try:
+        for b in repo.get_branches():
+            if compare(f'refs/heads/{b.name}', rev):
+                return False
+        for t in repo.get_tags():
+            if compare(f'refs/tags/{t.name}', rev):
+                return False
+    except GithubException:
+        log('is_impostor: GithubException')
+        return True
+
+    return True
 
 def fmt_rev(repo, rev):
     if not rev:
@@ -245,6 +271,10 @@ def main():
                         required=False,
                         help='Use a checked-out tree to parse the manifests.')
 
+    parser.add_argument('--check-impostor-commits', action='store',
+                        required=False,
+                        help='Check for impostor commits.')
+
     parser.add_argument('-l', '--labels', action='store',
                         required=False,
                         help='Comma-separated list of labels.')
@@ -271,6 +301,8 @@ def main():
     message = args.message if args.message != 'none' else None
     checkout = args.checkout_path if args.checkout_path != 'none' else None
     use_tree = args.use_tree_checkout != 'false'
+    check_impostor = args.check_impostor_commits != 'false'
+    impostor_sha = False
     labels = [x.strip() for x in args.labels.split(',')] \
         if args.labels != 'none' else None
     dnm_labels = [x.strip() for x in args.dnm_labels.split(',')] \
@@ -405,7 +437,11 @@ def main():
             line += f'| [{repo.full_name}#{pr.number}/files]' + \
                     f'({pr.html_url}/files) |'
         else:
-            line += f'| {fmt_rev(repo, new_rev)} '
+            if check_impostor and is_impostor(repo, new_rev):
+                impostor_sha = True
+                line += f'|\u274c Impostor SHA: {fmt_rev(repo, new_rev)} '
+            else:
+                line += f'| {fmt_rev(repo, new_rev)} '
             if p in uprojs:
                 line += f'| [{repo.full_name}@{shorten_rev(old_rev)}..' + \
                         f'{shorten_rev(new_rev)}]' + \
@@ -472,7 +508,7 @@ def main():
                         print(f'Unable to remove prefixed label {l}')
 
     if dnm_labels:
-        if not len(aprojs) and not len(pr_projs):
+        if not len(aprojs) and not len(pr_projs) and not impostor_sha:
             # Remove the DNM labels
             try:
                 for l in dnm_labels:
