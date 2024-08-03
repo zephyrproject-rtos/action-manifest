@@ -131,7 +131,16 @@ def maybe_sha(rev):
 def is_impostor(repo, rev):
 
     def compare(base, head):
-        c = repo.compare(base, head)
+        try:
+            c = repo.compare(base, head)
+        except GithubException as e:
+            if (e.status == 404 and
+               "no common ancestor" in e.data["message"].lower()):
+                   log(f"No common ancestor between {base} and {head}")
+                   return False
+            else:
+                log(f'compare: GithubException: {e}')
+                raise
         return c.status in ('behind', 'identical')
 
     if not rev:
@@ -145,12 +154,14 @@ def is_impostor(repo, rev):
     try:
         for b in repo.get_branches():
             if compare(f'refs/heads/{b.name}', rev):
+                log(f'Found revision {rev} in branch {b.name}')
                 return False
         for t in repo.get_tags():
             if compare(f'refs/tags/{t.name}', rev):
+                log(f'Found revision {rev} in tag {t.name}')
                 return False
-    except GithubException:
-        log('is_impostor: GithubException')
+    except GithubException as e:
+        log(f'is_impostor: GithubException: {e}')
         return True
 
     return True
