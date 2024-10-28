@@ -219,7 +219,7 @@ def _get_manifests_from_gh(token, gh_repo, mpath, new_mfile, base_sha):
     try:
         old_mfile = gh_repo.get_contents(mpath, base_sha)
     except GithubException:
-        print('Base revision does not contain a valid manifest')
+        log('Base revision does not contain a valid manifest')
         exit(0)
 
     old_manifest = manifest_from_url(token, old_mfile.download_url)
@@ -303,7 +303,7 @@ def main():
                         type=int, default=0, choices=range(0, 2),
                         required=False, help='Verbosity level.')
 
-    print(sys.argv)
+    log(sys.argv)
 
     args = parser.parse_args()
 
@@ -423,8 +423,8 @@ def main():
         try:
             repo = gh.get_repo(re_url.match(url)[1])
         except (GithubException, TypeError) as error:
-            print(error)
-            print(f"Can't get repo for {p[0]}; output will be limited")
+            log(error)
+            log(f"Can't get repo for {p[0]}; output will be limited")
             strs.append(f'| {p[0]} | {old_rev} | {new_rev} | N/A |')
             continue
 
@@ -458,12 +458,12 @@ def main():
 
     if not comment:
         if len(projs):
-            print('Creating comment')
+            log('Creating comment')
             comment = gh_pr.create_issue_comment(message)
         else:
-            print('Skipping comment creation, no manifest changes')
+            log('Skipping comment creation, no manifest changes')
     else:
-        print('Updating comment')
+        log('Updating comment')
         comment.edit(message)
 
     if not comment:
@@ -490,7 +490,7 @@ def main():
                     log(f'removing label {l}')
                     gh_pr.remove_from_labels(l)
                 except GithubException:
-                    print(f'Unable to remove label {l}')
+                    log(f'Unable to remove label {l}')
 
     if label_prefix:
         for p in projs:
@@ -503,7 +503,7 @@ def main():
                         log(f'removing label {l}')
                         gh_pr.remove_from_labels(l)
                     except GithubException:
-                        print(f'Unable to remove prefixed label {l}')
+                        log(f'Unable to remove prefixed label {l}')
 
     if dnm_labels:
         if not len(aprojs) and not len(pr_projs) and not impostor_sha:
@@ -513,7 +513,7 @@ def main():
                     log(f'removing label {l}')
                     gh_pr.remove_from_labels(l)
             except GithubException:
-                print('Unable to remove DNM label')
+                log('Unable to remove DNM label')
         else:
             # Add the DNM labels
             for l in dnm_labels:
