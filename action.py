@@ -259,6 +259,31 @@ def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha):
 
     return (old_manifest, new_manifest)
 
+def _get_status_note(len_a, len_pr, impostor_shas):
+    strs = []
+    def plural(count):
+        return 's' if count > 1 else ''
+
+    if len_a:
+        strs.append(f'{len_a} added project{plural(len_a)}')
+    if len_pr:
+        strs.append(f'{len_pr} project{plural(len_pr)} with PR revision')
+    if impostor_shas:
+        strs.append(f'{impostor_shas} impostor SHA{plural(impostor_shas)}')
+
+    if not len(strs):
+        return '\u2705 **All manifest checks OK**'
+
+    n = '\u274c **DNM label due to: '
+    for i, s in enumerate(strs):
+        if i == (len(strs) - 1):
+            _s = f'and {s}' if len(strs) > 1 else s
+        else:
+            _s = f'{s}, ' if (len(strs) - i > 2) else f'{s} '
+        n += _s
+    n += '**'
+    return n
+
 def main():
 
     parser = argparse.ArgumentParser(
@@ -314,7 +339,6 @@ def main():
     checkout = args.checkout_path if args.checkout_path != 'none' else None
     use_tree = args.use_tree_checkout != 'false'
     check_impostor = args.check_impostor_commits != 'false'
-    impostor_sha = False
     labels = [x.strip() for x in args.labels.split(',')] \
         if args.labels != 'none' else None
     dnm_labels = [x.strip() for x in args.dnm_labels.split(',')] \
@@ -402,6 +426,7 @@ def main():
 
     log(f'projs_names: {str(projs_names)}')
 
+    impostor_shas = 0
     # Link main PR to project PRs
     strs = list()
     if message:
@@ -436,7 +461,7 @@ def main():
                     f'({pr.html_url}/files) |'
         else:
             if check_impostor and is_impostor(repo, new_rev):
-                impostor_sha = True
+                impostor_shas += 1
                 line += f'|\u274c Impostor SHA: {fmt_rev(repo, new_rev)} '
             else:
                 line += f'| {fmt_rev(repo, new_rev)} '
@@ -449,7 +474,11 @@ def main():
 
         strs.append(line)
 
-    message = '\n'.join(strs) + NOTE
+    # Add a note about the merge status of the manifest PR
+    status_note = _get_status_note(len(aprojs), len(pr_projs), impostor_shas)
+    status_note = f'\n\n{status_note}'
+
+    message = '\n'.join(strs) + status_note + NOTE
     comment = None
     for c in gh_pr.get_issue_comments():
         if NOTE in c.body:
@@ -506,7 +535,7 @@ def main():
                         log(f'Unable to remove prefixed label {l}')
 
     if dnm_labels:
-        if not len(aprojs) and not len(pr_projs) and not impostor_sha:
+        if not len(aprojs) and not len(pr_projs) and not impostor_shas:
             # Remove the DNM labels
             try:
                 for l in dnm_labels:
