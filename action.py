@@ -34,14 +34,12 @@ def die(s):
     print(f'ERROR: {s}', file=sys.stderr)
     sys.exit(1)
 
-
-def gh_tuple_split(s):
+def gh_pr_split(s):
     sl = s.split('/')
-    if len(sl) != 2:
-        raise RuntimeError("Invalid org or dst format")
+    if len(sl) != 3:
+        raise RuntimeError(f"Invalid pr format: {s}")
 
-    return sl[0], sl[1]
-
+    return sl[0], sl[1], sl[2]
 
 def cmd2str(cmd):
     # Formats the command-line arguments in the iterable 'cmd' into a string,
@@ -270,6 +268,9 @@ def main():
                         required=True,
                         help='Path to the manifest file.')
 
+    parser.add_argument('--pr', default=None, required=True,
+                        help='<org>/<repo>/<pr num>')
+
     parser.add_argument('-m', '--message', action='store',
                         required=False,
                         help='Message to post.')
@@ -323,39 +324,25 @@ def main():
     if use_tree and not checkout:
         sys_exit("Cannot use a tree checkout without a checkout path")
 
-    # Retrieve main env vars
-    action = os.environ.get('GITHUB_ACTION', None)
-    workflow = os.environ.get('GITHUB_WORKFLOW', None)
-    org_repo = os.environ.get('GITHUB_REPOSITORY', None)
-
-    log(f'Running action {action} from workflow {workflow} in {org_repo}')
-
-    evt_name = os.environ.get('GITHUB_EVENT_NAME', None)
-    evt_path = os.environ.get('GITHUB_EVENT_PATH', None)
-    workspace = os.environ.get('GITHUB_WORKSPACE', None)
-    
     # Abs path to checked-out tree
-    checkout = (Path(workspace) / Path(checkout)).resolve() if checkout else None
-
-    log(f'Event {evt_name} in {evt_path} and workspace {workspace}')
+    workspace = os.environ.get('GITHUB_WORKSPACE', None)
+    if checkout:
+        checkout = ((Path(workspace) / Path(checkout)).resolve() if workspace else
+                   Path(checkout).resolve())
+        if not checkout.is_dir():
+            die(f'checkout repo {checkout} does not exist; check path')
+        log(f'Checkout path: {checkout}')
 
     token = os.environ.get('GITHUB_TOKEN', None)
     if not token:
         sys.exit('Github token not set in environment, please set the '
                  'GITHUB_TOKEN environment variable and retry.')
 
-    if not ("pull_request" in evt_name):
-        sys.exit(f'Invalid event {evt_name}')
-
-    with open(evt_path, 'r') as f:
-        evt = json.load(f)
-
-    pr = evt['pull_request']
-
     gh = Github(token)
 
-    gh_repo = gh.get_repo(org_repo)
-    gh_pr = gh_repo.get_pull(int(pr['number']))
+    org_str, repo_str, pr_str = gh_pr_split(args.pr)
+    gh_repo = gh.get_repo(f'{org_str}/{repo_str}')
+    gh_pr = gh_repo.get_pull(int(pr_str))
 
     mpath = args.path
     new_mfile = None
