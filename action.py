@@ -462,7 +462,7 @@ def main():
             line += f'| [{repo.full_name}#{pr.number}/files]' + \
                     f'({pr.html_url}/files) |'
         else:
-            if check_impostor and is_impostor(repo, new_rev):
+            if check_impostor and new_rev and is_impostor(repo, new_rev):
                 impostor_shas += 1
                 line += f'|\u274c Impostor SHA: {fmt_rev(repo, new_rev)} '
             else:
