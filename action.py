@@ -259,13 +259,15 @@ def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha):
 
     return (old_manifest, new_manifest)
 
-def _get_status_note(len_a, len_pr, impostor_shas):
+def _get_status_note(len_a, len_r, len_pr, impostor_shas):
     strs = []
     def plural(count):
         return 's' if count > 1 else ''
 
     if len_a:
         strs.append(f'{len_a} added project{plural(len_a)}')
+    if len_r:
+        strs.append(f'{len_r} removed project{plural(len_r)}')
     if len_pr:
         strs.append(f'{len_pr} project{plural(len_pr)} with PR revision')
     if impostor_shas:
@@ -475,7 +477,8 @@ def main():
         strs.append(line)
 
     # Add a note about the merge status of the manifest PR
-    status_note = _get_status_note(len(aprojs), len(pr_projs), impostor_shas)
+    status_note = _get_status_note(len(aprojs), len(rprojs), len(pr_projs),
+                                   impostor_shas)
     status_note = f'\n\n{status_note}'
 
     message = '\n'.join(strs) + status_note + NOTE
@@ -535,7 +538,7 @@ def main():
                         log(f'Unable to remove prefixed label {l}')
 
     if dnm_labels:
-        if not len(aprojs) and not len(pr_projs) and not impostor_shas:
+        if not len(rprojs) and not len(aprojs) and not len(pr_projs) and not impostor_shas:
             # Remove the DNM labels
             try:
                 for l in dnm_labels:
