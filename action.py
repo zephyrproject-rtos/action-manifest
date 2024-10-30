@@ -17,7 +17,8 @@ import time
 # 3rd party imports go here
 import requests
 from github import Github, GithubException
-from west.manifest import Manifest, MalformedManifest, ImportFlag
+from west.manifest import Manifest, MalformedManifest, ImportFlag, \
+                          MANIFEST_PROJECT_INDEX
 
 NOTE = "\n\n*Note: This message is automatically posted and updated by the " \
        "Manifest GitHub Action.* "
@@ -414,13 +415,20 @@ def main():
         (old_manifest, new_manifest) = _get_manifests_from_gh(token, gh_repo,
                                                               mpath, new_mfile,
                                                               base_sha)
+    # Ensure we only remove the manifest project
+    assert(MANIFEST_PROJECT_INDEX == 0)
+    omp = old_manifest.projects[MANIFEST_PROJECT_INDEX]
+    nmp = new_manifest.projects[MANIFEST_PROJECT_INDEX]
+    ops = old_manifest.projects[MANIFEST_PROJECT_INDEX + 1:]
+    nps = new_manifest.projects[MANIFEST_PROJECT_INDEX + 1:]
 
-    old_projs = set((p.name, p.revision) for p in old_manifest.projects)
-    new_projs = set((p.name, p.revision) for p in new_manifest.projects)
+    old_projs = set((p.name, p.revision) for p in ops)
+    new_projs = set((p.name, p.revision) for p in nps)
 
     log(f'old_projs: {old_projs}')
     log(f'new_projs: {new_projs}')
 
+    log('Revision sets')
     (projs, rprojs, uprojs, aprojs) = _get_sets(old_projs, new_projs)
 
     projs_names = [name for name, rev in projs]
@@ -441,7 +449,7 @@ def main():
     strs = list()
     if message:
         strs.append(message)
-    strs.append('The following west manifest projects have been modified in this Pull '
+    strs.append('The following west manifest projects have changed revision in this Pull '
                 'Request:\n')
     strs.append('| Name | Old Revision | New Revision | Diff |')
     strs.append('| ---- | ------------ | ------------ |------|')
