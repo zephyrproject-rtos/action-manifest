@@ -286,6 +286,28 @@ def _get_status_note(len_a, len_r, len_pr, impostor_shas):
     n += '**'
     return n
 
+def _get_sets(old_projs, new_projs):
+    # Symmetric difference: everything that is not in both
+
+    # Removed projects
+    rprojs = set(filter(lambda p: p[0] not in list(p[0] for p in new_projs),
+                        old_projs - new_projs))
+    # Updated projects
+    uprojs = set(filter(lambda p: p[0] in list(p[0] for p in old_projs),
+                        new_projs - old_projs))
+    # Added projects
+    aprojs = new_projs - old_projs - uprojs
+
+    # All projs
+    projs = rprojs | uprojs | aprojs
+
+    log(f'rprojs: {rprojs}')
+    log(f'uprojs: {uprojs}')
+    log(f'aprojs: {aprojs}')
+
+    return (projs, rprojs, uprojs, aprojs)
+
+
 def main():
 
     parser = argparse.ArgumentParser(
@@ -395,27 +417,13 @@ def main():
 
     old_projs = set((p.name, p.revision) for p in old_manifest.projects)
     new_projs = set((p.name, p.revision) for p in new_manifest.projects)
+
     log(f'old_projs: {old_projs}')
     log(f'new_projs: {new_projs}')
 
-    # Symmetric difference: everything that is not in both
+    (projs, rprojs, uprojs, aprojs) = _get_sets(old_projs, new_projs)
 
-    # Removed projects
-    rprojs = set(filter(lambda p: p[0] not in list(p[0] for p in new_projs),
-                        old_projs - new_projs))
-    # Updated projects
-    uprojs = set(filter(lambda p: p[0] in list(p[0] for p in old_projs),
-                        new_projs - old_projs))
-    # Added projects
-    aprojs = new_projs - old_projs - uprojs
-
-    # All projs
-    projs = rprojs | uprojs | aprojs
     projs_names = [name for name, rev in projs]
-
-    log(f'rprojs: {rprojs}')
-    log(f'uprojs: {uprojs}')
-    log(f'aprojs: {aprojs}')
 
     if not len(projs):
         log('No projects updated')
