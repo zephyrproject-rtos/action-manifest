@@ -260,7 +260,7 @@ def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha):
 
     return (old_manifest, new_manifest)
 
-def _get_status_note(len_a, len_r, len_pr, impostor_shas):
+def _get_merge_status(len_a, len_r, len_pr, impostor_shas):
     strs = []
     def plural(count):
         return 's' if count > 1 else ''
@@ -275,7 +275,7 @@ def _get_status_note(len_a, len_r, len_pr, impostor_shas):
         strs.append(f'{impostor_shas} impostor SHA{plural(impostor_shas)}')
 
     if not len(strs):
-        return '\u2705 **All manifest checks OK**'
+        return False, '\u2705 **All manifest checks OK**'
 
     n = '\u274c **DNM label due to: '
     for i, s in enumerate(strs):
@@ -285,7 +285,7 @@ def _get_status_note(len_a, len_r, len_pr, impostor_shas):
             _s = f'{s}, ' if (len(strs) - i > 2) else f'{s} '
         n += _s
     n += '**'
-    return n
+    return True, n
 
 def _get_sets(old_projs, new_projs):
     # Symmetric difference: everything that is not in both
@@ -493,8 +493,8 @@ def main():
         strs.append(line)
 
     # Add a note about the merge status of the manifest PR
-    status_note = _get_status_note(len(aprojs), len(rprojs), len(pr_projs),
-                                   impostor_shas)
+    dnm, status_note = _get_merge_status(len(aprojs), len(rprojs), len(pr_projs),
+                                         impostor_shas)
     status_note = f'\n\n{status_note}'
 
     message = '\n'.join(strs) + status_note + NOTE
@@ -554,7 +554,7 @@ def main():
                         log(f'Unable to remove prefixed label {l}')
 
     if dnm_labels:
-        if not len(rprojs) and not len(aprojs) and not len(pr_projs) and not impostor_shas:
+        if not dnm:
             # Remove the DNM labels
             try:
                 for l in dnm_labels:
