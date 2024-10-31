@@ -171,7 +171,7 @@ def fmt_rev(repo, rev):
 
     try:
         if maybe_sha(rev):
-            branches = [b.name for b in repo.get_branches() if rev ==
+            branches = [f'`{b.name}`' for b in repo.get_branches() if rev ==
                         b.commit.sha]
             s = repo.get_commit(rev).html_url
             # commits get formatted nicely by GitHub itself
