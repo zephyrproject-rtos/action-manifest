@@ -260,7 +260,7 @@ def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha):
 
     return (old_manifest, new_manifest)
 
-def _get_merge_status(len_a, len_r, len_pr, impostor_shas):
+def _get_merge_status(len_a, len_r, len_pr, len_meta, impostor_shas, unreachables):
     strs = []
     def plural(count):
         return 's' if count > 1 else ''
@@ -271,13 +271,17 @@ def _get_merge_status(len_a, len_r, len_pr, impostor_shas):
         strs.append(f'{len_r} removed project{plural(len_r)}')
     if len_pr:
         strs.append(f'{len_pr} project{plural(len_pr)} with PR revision')
+    if len_meta:
+        strs.append(f'{len_meta} project{plural(len_meta)} with metadata changes')
     if impostor_shas:
         strs.append(f'{impostor_shas} impostor SHA{plural(impostor_shas)}')
+    if unreachables:
+        strs.append(f'{unreachables} unreachable repo{plural(unreachables)}')
 
     if not len(strs):
         return False, '\u2705 **All manifest checks OK**'
 
-    n = '\u274c **DNM label due to: '
+    n = '\U000026D4 **DNM label due to: '
     for i, s in enumerate(strs):
         if i == (len(strs) - 1):
             _s = f'and {s}' if len(strs) > 1 else s
@@ -445,6 +449,8 @@ def main():
     log(f'projs_names: {str(projs_names)}')
 
     impostor_shas = 0
+    unreachables = 0
+    files = dict()
     # Link main PR to project PRs
     strs = list()
     if message:
@@ -462,6 +468,8 @@ def main():
         new_rev = None if p in rprojs else p[1]
         or_note = ' (Added)' if not old_rev else ''
         nr_note = ' (Removed)' if not new_rev else ''
+        name_note = ' \U0001F195' if not old_rev else ' \U0000274c ' if \
+                    not new_rev else ''
         url = manifest.get_projects([p[0]])[0].url
         re_url = re.compile(r'https://github\.com/'
                             '([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?')
@@ -470,15 +478,18 @@ def main():
         except (GithubException, TypeError) as error:
             log(error)
             log(f"Can't get repo for {p[0]}; output will be limited")
-            strs.append(f'| {p[0]} | {old_rev}{or_note} | {new_rev}{nr_note} | N/A |')
+            strs.append(f'| {p[0]}{name_note} | {old_rev}{or_note} | {new_rev}{nr_note} | N/A |')
+            unreachables += 1
             continue
 
-        line = f'| {p[0]} | {fmt_rev(repo, old_rev)}{or_note} '
+        line = f'| {p[0]}{name_note} | {fmt_rev(repo, old_rev)}{or_note} '
         if p in pr_projs:
             pr = repo.get_pull(int(re_rev.match(new_rev)[1]))
             line += f'| {pr.html_url}{nr_note} '
             line += f'| [{repo.full_name}#{pr.number}/files]' + \
                     f'({pr.html_url}/files) |'
+            # Store files changed
+            files[p[0]] = [f for f in pr.get_files()]
         else:
             if check_impostor and new_rev and is_impostor(repo, new_rev):
                 impostor_shas += 1
@@ -489,14 +500,73 @@ def main():
                 line += f'| [{repo.full_name}@{shorten_rev(old_rev)}..' + \
                         f'{shorten_rev(new_rev)}]' + \
                         f'({repo.html_url}/compare/{old_rev}..{new_rev}) |'
+                # Store files changed
+                try:
+                    c = repo.compare(old_rev, new_rev)
+                    files[p[0]] = [f for f in c.files]
+                except GithubException as e:
+                    log(e)
+                    log(f"Can't get files changed for {p[0]}")
             else:
                 line += '| N/A |'
 
         strs.append(line)
 
+    def _hashable(o):
+        if isinstance(o, list):
+            return frozenset(o)
+        return o
+
+    def _module_changed(p):
+        if p.name in files:
+            for f in files[p.name]:
+                if ('zephyr/module.yml' in f.filename or
+                   'zephyr/module.yaml' in f.filename):
+                    return True
+        return False
+
+    # Check additional metadata
+    meta_op = set((p.name, p.url, _hashable(p.submodules),
+                   _hashable(p.west_commands), False) for p in ops)
+    meta_np = set((p.name, p.url, _hashable(p.submodules),
+                   _hashable(p.west_commands), _module_changed(p)) for p in nps)
+
+    log('Metadata sets')
+    (_, meta_rprojs, meta_uprojs, meta_aprojs) = _get_sets(meta_op, meta_np)
+    meta_projs = meta_uprojs | meta_aprojs
+
+    def _cmp_old_new(p, index, force_change=False):
+        old = None if p in meta_aprojs else next(filter(lambda _p: _p[0] == p[0], meta_op))[index]
+        new = next(filter(lambda _p: _p[0] == p[0], meta_np))[index]
+        log(f'name: {p[0]} index: {index} old: {old} new: {new}')
+        # Special handling for an added project
+        if old is None and not new:
+            return ''
+        # Select which symbol to show
+        if not old and new:
+            return '\U0001F195' if not force_change else '\u270f' # added
+        elif not new and old:
+            return '\u274c' # removed
+        elif new != old:
+            return '\u270f' # modified
+        else:
+            return ''
+
+    if len(meta_uprojs):
+        strs.append('\n\nAdditional metadata changed:\n')
+        strs.append('| Name | URL | Submodules | West cmds | `module.yml` | ')
+        strs.append('| ---- | --- | ---------- | --------- | ------------ | ')
+        for p in sorted(meta_uprojs, key=lambda _p: _p[0]):
+            url = _cmp_old_new(p, 1)
+            subms = _cmp_old_new(p, 2)
+            wcmds = _cmp_old_new(p, 3)
+            mys = _cmp_old_new(p, 4, True)
+            line = f'| {p[0]} | {url} | {subms} | {wcmds} | {mys} |'
+            strs.append(line)
+
     # Add a note about the merge status of the manifest PR
     dnm, status_note = _get_merge_status(len(aprojs), len(rprojs), len(pr_projs),
-                                         impostor_shas)
+                                         len(meta_uprojs), impostor_shas, unreachables)
     status_note = f'\n\n{status_note}'
 
     message = '\n'.join(strs) + status_note + NOTE
