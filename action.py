@@ -460,6 +460,8 @@ def main():
         old_rev = None if p in aprojs else next(
             filter(lambda _p: _p[0] == p[0], old_projs))[1]
         new_rev = None if p in rprojs else p[1]
+        or_note = ' (Added)' if not old_rev else ''
+        nr_note = ' (Removed)' if not new_rev else ''
         url = manifest.get_projects([p[0]])[0].url
         re_url = re.compile(r'https://github\.com/'
                             '([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?')
@@ -468,21 +470,21 @@ def main():
         except (GithubException, TypeError) as error:
             log(error)
             log(f"Can't get repo for {p[0]}; output will be limited")
-            strs.append(f'| {p[0]} | {old_rev} | {new_rev} | N/A |')
+            strs.append(f'| {p[0]} | {old_rev}{or_note} | {new_rev}{nr_note} | N/A |')
             continue
 
-        line = f'| {p[0]} | {fmt_rev(repo, old_rev)} '
+        line = f'| {p[0]} | {fmt_rev(repo, old_rev)}{or_note} '
         if p in pr_projs:
             pr = repo.get_pull(int(re_rev.match(new_rev)[1]))
-            line += f'| {pr.html_url} '
+            line += f'| {pr.html_url}{nr_note} '
             line += f'| [{repo.full_name}#{pr.number}/files]' + \
                     f'({pr.html_url}/files) |'
         else:
             if check_impostor and new_rev and is_impostor(repo, new_rev):
                 impostor_shas += 1
-                line += f'|\u274c Impostor SHA: {fmt_rev(repo, new_rev)} '
+                line += f'|\u274c Impostor SHA: {fmt_rev(repo, new_rev)}{nr_note} '
             else:
-                line += f'| {fmt_rev(repo, new_rev)} '
+                line += f'| {fmt_rev(repo, new_rev)}{nr_note}'
             if p in uprojs:
                 line += f'| [{repo.full_name}@{shorten_rev(old_rev)}..' + \
                         f'{shorten_rev(new_rev)}]' + \
