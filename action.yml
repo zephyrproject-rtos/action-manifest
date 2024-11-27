@@ -18,6 +18,11 @@ inputs:
     description: 'If true, comparison will be made on Git tree checkouts'
     default: 'false'
     required: false
+  west-import-flag:
+    description: 'West import flag to use when parsing the checked out manifest. 
+                  Choices are all, none, self'
+    default: 'all'
+    required: false
   check-impostor-commits:
     description: 'If true, a check for impostor commits will be performed'
     default: 'false'
@@ -62,6 +67,7 @@ runs:
            -l "${{ inputs.labels }}" --label-prefix "${{ inputs.label-prefix }}" \
            --dnm-labels "${{ inputs.dnm-labels }}"  -v "${{ inputs.verbosity-level }}" \
            --use-tree-checkout "${{ inputs.use-tree-checkout }}" \
+           --west-import-flag "${{ inputs.west-import-flag }}" \
            --check-impostor-commits "${{ inputs.check-impostor-commits }}"
       shell: bash
       env:

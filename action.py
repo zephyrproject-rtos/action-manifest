@@ -48,9 +48,12 @@ def cmd2str(cmd):
 
     return " ".join(shlex.quote(word) for word in cmd)
 
+def str2import_flag(import_flag):
+    flags = {'all': ImportFlag.DEFAULT, 'none': ImportFlag.IGNORE,
+             'self': ImportFlag.IGNORE_PROJECTS}
+    return flags[import_flag]
+
 # Taken from Zephyr's check_compliance script
-
-
 def git(*args, cwd=None):
     # Helper for running a Git command. Returns the rstrip()ed stdout output.
     # Called like git("diff"). Exits with SystemError (raised by sys.exit()) on
@@ -238,7 +241,7 @@ def _get_manifests_from_gh(token, gh_repo, mpath, new_mfile, base_sha):
 
     return (old_manifest, new_manifest)
 
-def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha):
+def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha, import_flag):
     # Check if current tree is at the right location
 
     mfile = (Path(checkout) / Path(mpath)).resolve()
@@ -253,7 +256,7 @@ def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha):
             # Use --quiet to avoid Git writing a warning about a commit left
             # behind in stderr
             git('checkout', '--quiet', '--detach', sha, cwd=checkout)
-        return Manifest.from_file(mfile)
+        return Manifest.from_file(mfile, import_flags=import_flag)
 
     old_manifest = manifest_at_rev(base_sha)
     new_manifest = manifest_at_rev(gh_pr.head.sha)
@@ -337,6 +340,10 @@ def main():
                         required=False,
                         help='Use a checked-out tree to parse the manifests.')
 
+    parser.add_argument('--west-import-flag', action='store',
+                        required=False, choices=['all', 'none', 'self'],
+                        help='Use a checked-out tree to parse the manifests.')
+
     parser.add_argument('--check-impostor-commits', action='store',
                         required=False,
                         help='Check for impostor commits.')
@@ -366,6 +373,7 @@ def main():
 
     message = args.message if args.message != 'none' else None
     checkout = args.checkout_path if args.checkout_path != 'none' else None
+    import_flag = str2import_flag(args.west_import_flag or 'all')
     use_tree = args.use_tree_checkout != 'false'
     check_impostor = args.check_impostor_commits != 'false'
     labels = [x.strip() for x in args.labels.split(',')] \
@@ -414,7 +422,8 @@ def main():
     if use_tree:
         (old_manifest, new_manifest) = _get_manifests_from_tree(mpath,
                                                                 gh_pr, checkout,
-                                                                base_sha)
+                                                                base_sha,
+                                                                import_flag)
     else:
         (old_manifest, new_manifest) = _get_manifests_from_gh(token, gh_repo,
                                                               mpath, new_mfile,
