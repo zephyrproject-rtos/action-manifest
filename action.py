@@ -116,19 +116,16 @@ def get_merge_base(pr, checkout):
 
     die('Unable to find a merge base')
 
-# Taken from west:
+# Inspired in west code:
 # https://github.com/zephyrproject-rtos/west/blob/99482c684528cdf76a843e04b83c34e49a2d8cf2/src/west/app/project.py#L1165
-
-
-def maybe_sha(rev):
-    # Return true if and only if the given revision might be a SHA.
-
+def is_sha(rev):
+    # Return true if and only if the given revision might be a full 40-byte SHA.
     try:
         int(rev, 16)
     except ValueError:
         return False
 
-    return len(rev) <= 40
+    return len(rev) == 40
 
 def is_impostor(repo, rev):
 
@@ -149,7 +146,7 @@ def is_impostor(repo, rev):
         log('is_impostor: revision is None')
         return True
 
-    if not maybe_sha(rev):
+    if not is_sha(rev):
         log('is_impostor: not a SHA')
         return False
 
@@ -173,7 +170,7 @@ def fmt_rev(repo, rev):
         return 'N/A'
 
     try:
-        if maybe_sha(rev):
+        if is_sha(rev):
             branches = [f'`{b.name}`' for b in repo.get_branches() if rev ==
                         b.commit.sha]
             s = repo.get_commit(rev).html_url
@@ -193,7 +190,7 @@ def fmt_rev(repo, rev):
     return f'[{repo.full_name}@{rev}]({s})'
 
 def shorten_rev(rev):
-    if maybe_sha(rev):
+    if is_sha(rev):
         return rev[:8]
     return rev
 
