@@ -182,11 +182,12 @@ def fmt_rev(repo, rev):
 
     try:
         if is_sha(rev):
-            branches = [f'`{b.name}`' for b in repo.get_branches() if rev ==
-                        b.commit.sha]
+            all_refs = [b for b in repo.get_branches()] + \
+                       [t for t in repo.get_tags()]
+            refs = [f'`{r.name}`' for r in all_refs if rev == r.commit.sha]
             s = repo.get_commit(rev).html_url
             # commits get formatted nicely by GitHub itself
-            return s + f' ({",".join(branches)})' if len(branches) else s
+            return s + f' ({",".join(refs)})' if len(refs) else s
         elif rev in [t.name for t in repo.get_tags()]:
             # For some reason there's no way of getting the URL via API
             s = f'{repo.html_url}/releases/tag/{rev}'
