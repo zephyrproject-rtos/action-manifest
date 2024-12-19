@@ -116,21 +116,36 @@ def get_merge_base(pr, checkout):
 
     die('Unable to find a merge base')
 
-# Taken from west:
+# Inspired in west code:
 # https://github.com/zephyrproject-rtos/west/blob/99482c684528cdf76a843e04b83c34e49a2d8cf2/src/west/app/project.py#L1165
-
-
-def maybe_sha(rev):
-    # Return true if and only if the given revision might be a SHA.
-
+def is_sha(rev):
+    # Return true if and only if the given revision might be a full 40-byte SHA.
     try:
         int(rev, 16)
     except ValueError:
         return False
 
-    return len(rev) <= 40
+    return len(rev) == 40
 
-def is_impostor(repo, rev):
+# Returns tuple (valid_rev, is_impostor)
+def is_valid_rev(repo, rev, check_impostor):
+
+    # No revision to check, consider everything OK
+    if not rev:
+        log('is_valid_rev: rev is None')
+        return (True, False)
+    sha = is_sha(rev)
+
+    # Verify that the commit actually exists, regardless of whether it's an
+    # impostor or not
+    if sha:
+        try:
+            repo.get_commit(rev)
+        except GithubException as e:
+            return (False, False)
+        # If no additional checks needed, return
+        if not check_impostor:
+            return (True, False)
 
     def compare(base, head):
         try:
@@ -141,44 +156,38 @@ def is_impostor(repo, rev):
                    log(f"No common ancestor between {base} and {head}")
                    return False
             else:
-                log(f'compare: GithubException: {e}')
+                log(f'is_valid_rev: compare: GithubException: {e}')
                 raise
-        return c.status in ('behind', 'identical')
-
-    if not rev:
-        log('is_impostor: revision is None')
-        return True
-
-    if not maybe_sha(rev):
-        log('is_impostor: not a SHA')
-        return False
+        status_ok = ('behind', 'identical') if sha else ('identical')
+        return c.status in status_ok
 
     try:
         for b in repo.get_branches():
             if compare(f'refs/heads/{b.name}', rev):
-                log(f'Found revision {rev} in branch {b.name}')
-                return False
+                log(f'is_valid_rev: Found revision {rev} in branch {b.name}')
+                return (True, False)
         for t in repo.get_tags():
             if compare(f'refs/tags/{t.name}', rev):
-                log(f'Found revision {rev} in tag {t.name}')
-                return False
+                log(f'is_valid_rev: Found revision {rev} in tag {t.name}')
+                return (True, False)
     except GithubException as e:
-        log(f'is_impostor: GithubException: {e}')
-        return True
+        log(f'is_valid_rev: GithubException: {e}')
+        return (False, False)
 
-    return True
+    return (True, True) if sha else (False, False)
 
 def fmt_rev(repo, rev):
     if not rev:
         return 'N/A'
 
     try:
-        if maybe_sha(rev):
-            branches = [f'`{b.name}`' for b in repo.get_branches() if rev ==
-                        b.commit.sha]
+        if is_sha(rev):
+            all_refs = [b for b in repo.get_branches()] + \
+                       [t for t in repo.get_tags()]
+            refs = [f'`{r.name}`' for r in all_refs if rev == r.commit.sha]
             s = repo.get_commit(rev).html_url
             # commits get formatted nicely by GitHub itself
-            return s + f' ({",".join(branches)})' if len(branches) else s
+            return s + f' ({",".join(refs)})' if len(refs) else s
         elif rev in [t.name for t in repo.get_tags()]:
             # For some reason there's no way of getting the URL via API
             s = f'{repo.html_url}/releases/tag/{rev}'
@@ -193,7 +202,7 @@ def fmt_rev(repo, rev):
     return f'[{repo.full_name}@{rev}]({s})'
 
 def shorten_rev(rev):
-    if maybe_sha(rev):
+    if is_sha(rev):
         return rev[:8]
     return rev
 
@@ -263,7 +272,8 @@ def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha, import_flag):
 
     return (old_manifest, new_manifest)
 
-def _get_merge_status(len_a, len_r, len_pr, len_meta, impostor_shas, unreachables):
+def _get_merge_status(len_a, len_r, len_pr, len_meta, impostor_shas,
+                      invalid_revs, unreachables):
     strs = []
     def plural(count):
         return 's' if count > 1 else ''
@@ -278,6 +288,8 @@ def _get_merge_status(len_a, len_r, len_pr, len_meta, impostor_shas, unreachable
         strs.append(f'{len_meta} project{plural(len_meta)} with metadata changes')
     if impostor_shas:
         strs.append(f'{impostor_shas} impostor SHA{plural(impostor_shas)}')
+    if invalid_revs:
+        strs.append(f'{invalid_revs} inexistent revision{plural(impostor_shas)}')
     if unreachables:
         strs.append(f'{unreachables} unreachable repo{plural(unreachables)}')
 
@@ -458,6 +470,7 @@ def main():
     log(f'projs_names: {str(projs_names)}')
 
     impostor_shas = 0
+    invalid_revs = 0
     unreachables = 0
     files = dict()
     # Link main PR to project PRs
@@ -500,9 +513,13 @@ def main():
             # Store files changed
             files[p[0]] = [f for f in pr.get_files()]
         else:
-            if check_impostor and new_rev and is_impostor(repo, new_rev):
+            (valid_rev, impostor) = is_valid_rev(repo, new_rev, check_impostor)
+            if impostor:
                 impostor_shas += 1
                 line += f'|\u274c Impostor SHA: {fmt_rev(repo, new_rev)}{nr_note} '
+            elif not valid_rev:
+                invalid_revs += 1
+                line += f'|\u274c Inexistent revision: {fmt_rev(repo, new_rev)}{nr_note}'
             else:
                 line += f'| {fmt_rev(repo, new_rev)}{nr_note}'
             if p in uprojs:
@@ -575,7 +592,8 @@ def main():
 
     # Add a note about the merge status of the manifest PR
     dnm, status_note = _get_merge_status(len(aprojs), len(rprojs), len(pr_projs),
-                                         len(meta_uprojs), impostor_shas, unreachables)
+                                         len(meta_uprojs), impostor_shas,
+                                         invalid_revs, unreachables)
     status_note = f'\n\n{status_note}'
 
     message = '\n'.join(strs) + status_note + NOTE
