@@ -360,6 +360,10 @@ def main():
                         required=False,
                         help='Check for impostor commits.')
 
+    parser.add_argument('--allowed-unreachables', action='store',
+                        required=False,
+                        help='Comma-separated list of repos which are allowed to be unreachable.')
+
     parser.add_argument('-l', '--labels', action='store',
                         required=False,
                         help='Comma-separated list of labels.')
@@ -388,6 +392,8 @@ def main():
     import_flag = str2import_flag(args.west_import_flag or 'all')
     use_tree = args.use_tree_checkout != 'false'
     check_impostor = args.check_impostor_commits != 'false'
+    allowed_unreachables = [x.strip() for x in args.allowed_unreachables.split(',')] \
+        if args.allowed_unreachables != 'none' else None
     labels = [x.strip() for x in args.labels.split(',')] \
         if args.labels != 'none' else None
     dnm_labels = [x.strip() for x in args.dnm_labels.split(',')] \
@@ -501,7 +507,9 @@ def main():
             log(error)
             log(f"Can't get repo for {p[0]}; output will be limited")
             strs.append(f'| {p[0]}{name_note} | {old_rev}{or_note} | {new_rev}{nr_note} | N/A |')
-            unreachables += 1
+
+            if p[0] not in allowed_unreachables:
+                unreachables += 1
             continue
 
         line = f'| {p[0]}{name_note} | {fmt_rev(repo, old_rev)}{or_note} '
