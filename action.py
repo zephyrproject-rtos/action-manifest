@@ -393,7 +393,7 @@ def main():
     use_tree = args.use_tree_checkout != 'false'
     check_impostor = args.check_impostor_commits != 'false'
     allowed_unreachables = [x.strip() for x in args.allowed_unreachables.split(',')] \
-        if args.allowed_unreachables != 'none' else None
+        if args.allowed_unreachables != 'none' else []
     labels = [x.strip() for x in args.labels.split(',')] \
         if args.labels != 'none' else None
     dnm_labels = [x.strip() for x in args.dnm_labels.split(',')] \
