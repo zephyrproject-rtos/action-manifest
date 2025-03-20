@@ -257,7 +257,7 @@ def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha, import_flag):
 
     cur_sha = git('rev-parse', 'HEAD', cwd=checkout)
     if cur_sha != gh_pr.head.sha:
-        sys_exit(f'Current SHA {sha} is different from head.sha {gh_pr.head.sha}')
+        sys.exit(f'Current SHA {sha} is different from head.sha {gh_pr.head.sha}')
 
     def manifest_at_rev(sha):
         cur_sha = git('rev-parse', 'HEAD', cwd=checkout)
@@ -401,7 +401,7 @@ def main():
     label_prefix = args.label_prefix if args.label_prefix != 'none' else None
 
     if use_tree and not checkout:
-        sys_exit("Cannot use a tree checkout without a checkout path")
+        sys.exit("Cannot use a tree checkout without a checkout path")
 
     # Abs path to checked-out tree
     workspace = os.environ.get('GITHUB_WORKSPACE', None)
