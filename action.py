@@ -278,23 +278,29 @@ def _get_merge_status(len_a, len_r, len_pr, len_meta, impostor_shas,
     def plural(count):
         return 's' if count > 1 else ''
 
+    dnm_force = False
+
     if len_a:
         strs.append(f'{len_a} added project{plural(len_a)}')
     if len_r:
         strs.append(f'{len_r} removed project{plural(len_r)}')
     if len_pr:
         strs.append(f'{len_pr} project{plural(len_pr)} with PR revision')
+        dnm_force = True
     if len_meta:
         strs.append(f'{len_meta} project{plural(len_meta)} with metadata changes')
     if impostor_shas:
         strs.append(f'{impostor_shas} impostor SHA{plural(impostor_shas)}')
+        dnm_force = True
     if invalid_revs:
         strs.append(f'{invalid_revs} nonexistent revision{plural(impostor_shas)}')
+        dnm_force = True
     if unreachables:
         strs.append(f'{unreachables} unreachable repo{plural(unreachables)}')
+        dnm_force = True
 
     if not len(strs):
-        return False, '\u2705 **All manifest checks OK**'
+        return False, False, '\u2705 **All manifest checks OK**'
 
     n = '\U000026D4 **DNM label due to: '
     for i, s in enumerate(strs):
@@ -304,7 +310,7 @@ def _get_merge_status(len_a, len_r, len_pr, len_meta, impostor_shas,
             _s = f'{s}, ' if (len(strs) - i > 2) else f'{s} '
         n += _s
     n += '**'
-    return True, n
+    return True, dnm_force, n
 
 def _get_sets(old_projs, new_projs):
     # Symmetric difference: everything that is not in both
@@ -327,6 +333,16 @@ def _get_sets(old_projs, new_projs):
 
     return (projs, rprojs, uprojs, aprojs)
 
+def _label_was_removed(gh_pr, dnm_labels):
+    gh_issue = gh_pr.as_issue()
+    events = gh_issue.get_events()
+    for event in events:
+        if event.event == "unlabeled":
+            for label in dnm_labels:
+                if event.label.name == label:
+                    log(f"{event.label.name} removed by {event.actor}")
+                    return True
+    return False
 
 def main():
 
@@ -599,9 +615,9 @@ def main():
             strs.append(line)
 
     # Add a note about the merge status of the manifest PR
-    dnm, status_note = _get_merge_status(len(aprojs), len(rprojs), len(pr_projs),
-                                         len(meta_uprojs), impostor_shas,
-                                         invalid_revs, unreachables)
+    dnm, dnm_force, status_note = _get_merge_status(len(aprojs), len(rprojs), len(pr_projs),
+                                                    len(meta_uprojs), impostor_shas,
+                                                    invalid_revs, unreachables)
     status_note = f'\n\n{status_note}'
 
     message = '\n'.join(strs) + status_note + NOTE
@@ -670,10 +686,11 @@ def main():
             except GithubException:
                 log('Unable to remove DNM label')
         else:
-            # Add the DNM labels
-            for l in dnm_labels:
-                log(f'adding label {l}')
-                gh_pr.add_to_labels(l)
+            if dnm_force or not _label_was_removed(gh_pr, dnm_labels):
+                # Add the DNM labels
+                for l in dnm_labels:
+                    log(f'adding label {l}')
+                    gh_pr.add_to_labels(l)
 
     sys.exit(0)
 
