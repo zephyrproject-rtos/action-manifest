@@ -48,7 +48,15 @@ inputs:
     required: false
     default: 'none'
   dnm-labels:
-    description: 'Comma-separated list of labels.'
+    description: 'Comma-separated list of DNM labels.'
+    required: false
+    default: 'none'
+  blobs-added-labels:
+    description: 'Comma-separated list of blobs added labels.'
+    required: false
+    default: 'none'
+  blobs-modified-labels:
+    description: 'Comma-separated list of blobs modified labels.'
     required: false
     default: 'none'
   label-prefix:
@@ -71,7 +79,8 @@ runs:
            --checkout-path "${{ inputs.checkout-path}}" -m "${{ inputs.message }}" \
            -l "${{ inputs.labels }}" --label-prefix "${{ inputs.label-prefix }}" \
            --allowed-unreachables "${{ inputs.allowed-unreachables }}" \
-           --dnm-labels "${{ inputs.dnm-labels }}"  -v "${{ inputs.verbosity-level }}" \
+           --dnm-labels "${{ inputs.dnm-labels }}" --blobs-added-labels "${{ inputs.blobs-added-labels }}" \
+           --blobs-modified-labels "${{ inputs.blobs-modified-labels }}" -v "${{ inputs.verbosity-level }}" \
            --use-tree-checkout "${{ inputs.use-tree-checkout }}" \
            --west-import-flag "${{ inputs.west-import-flag }}" \
            --check-impostor-commits "${{ inputs.check-impostor-commits }}"

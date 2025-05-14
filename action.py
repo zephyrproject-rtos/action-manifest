@@ -5,6 +5,7 @@
 
 # standard library imports only here
 import argparse
+from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
@@ -16,15 +17,31 @@ import time
 
 # 3rd party imports go here
 import requests
+from github.File import File
+from github.Repository import Repository
+from github.PullRequest import PullRequest
 from github import Github, GithubException
 from west.manifest import Manifest, MalformedManifest, ImportFlag, \
                           MANIFEST_PROJECT_INDEX
+import yaml
 
 NOTE = "\n\n*Note: This message is automatically posted and updated by the " \
        "Manifest GitHub Action.* "
 
 _logging = 0
 
+@dataclass
+class ProjectData:
+    name: str | None = None
+    old_rev: str | None = None
+    new_rev: str | None = None
+    repo: Repository | None = None
+    pr: PullRequest | None = None
+    files: list[File] | None = None
+    myml: File | None = None
+    rblobs: list[str] | None = None
+    ublobs: list[str] | None= None
+    ablobs: list[str] | None = None
 
 def log(s):
     if _logging:
@@ -211,6 +228,20 @@ def request(token, url):
     req = requests.get(url=url, headers=header)
     return req
 
+def yaml_from_url(token, url):
+
+    log(f'Creating yaml from {url}')
+
+    # Download yaml file
+    raw_yaml = request(token, url).content.decode()
+    try:
+        yml = yaml.safe_load(raw_yaml)
+    except yaml.YAMLError as e:
+        log(f'Failed to parse module.yml from {url}: {e}')
+        return None
+
+    return yml
+
 def manifest_from_url(token, url):
 
     log(f'Creating manifest from {url}')
@@ -227,6 +258,13 @@ def manifest_from_url(token, url):
     log(f'Created manifest {manifest}')
     return manifest
 
+def _file_to_download_url(token, file):
+        # When authorization is enabled we require a
+        # raw.githubusercontent.com/..?token= style URL (aka download_url) but
+        # new_mfile.raw_url gives us a <repo>/raw/<sha> style URL
+        cont = request(token, url=file.contents_url).content.decode()
+        return json.loads(cont)['download_url']
+ 
 def _get_manifests_from_gh(token, gh_repo, mpath, new_mfile, base_sha):
 
     try:
@@ -238,11 +276,7 @@ def _get_manifests_from_gh(token, gh_repo, mpath, new_mfile, base_sha):
     old_manifest = manifest_from_url(token, old_mfile.download_url)
 
     if new_mfile:
-        # When authorization is enabled we require a
-        # raw.githubusercontent.com/..?token= style URL (aka download_url) but
-        # new_mfile.raw_url gives us a <repo>/raw/<sha> style URL
-        new_mfile_cont = request(token, url=new_mfile.contents_url).content.decode()
-        new_mfile_durl = json.loads(new_mfile_cont)['download_url']
+        new_mfile_durl = _file_to_download_url(token, new_mfile)
         new_manifest = manifest_from_url(token, new_mfile_durl)
     else:
         # No change in manifest, run the checks anyway on the same manifest
@@ -272,7 +306,7 @@ def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha, import_flag):
 
     return (old_manifest, new_manifest)
 
-def _get_merge_status(len_a, len_r, len_pr, len_meta, impostor_shas,
+def _get_merge_status(len_a, len_r, len_pr, len_meta, blob_changes, impostor_shas,
                       invalid_revs, unreachables):
     strs = []
     def plural(count):
@@ -286,6 +320,8 @@ def _get_merge_status(len_a, len_r, len_pr, len_meta, impostor_shas,
         strs.append(f'{len_pr} project{plural(len_pr)} with PR revision')
     if len_meta:
         strs.append(f'{len_meta} project{plural(len_meta)} with metadata changes')
+    if blob_changes:
+        strs.append(f'{blob_changes} blob change{plural(blob_changes)}')
     if impostor_shas:
         strs.append(f'{impostor_shas} impostor SHA{plural(impostor_shas)}')
     if invalid_revs:
@@ -306,26 +342,26 @@ def _get_merge_status(len_a, len_r, len_pr, len_meta, impostor_shas,
     n += '**'
     return True, n
 
-def _get_sets(old_projs, new_projs):
-    # Symmetric difference: everything that is not in both
+def _get_sets(old_items, new_items, log_items=True):
 
-    # Removed projects
-    rprojs = set(filter(lambda p: p[0] not in list(p[0] for p in new_projs),
-                        old_projs - new_projs))
-    # Updated projects
-    uprojs = set(filter(lambda p: p[0] in list(p[0] for p in old_projs),
-                        new_projs - old_projs))
-    # Added projects
-    aprojs = new_projs - old_projs - uprojs
+    # Removed items
+    ritems = set(filter(lambda p: p[0] not in list(p[0] for p in new_items),
+                        old_items - new_items))
+    # Updated items
+    uitems = set(filter(lambda p: p[0] in list(p[0] for p in old_items),
+                        new_items - old_items))
+    # Added items
+    aitems = new_items - old_items - uitems
 
-    # All projs
-    projs = rprojs | uprojs | aprojs
+    # All items
+    items = ritems | uitems | aitems
 
-    log(f'rprojs: {rprojs}')
-    log(f'uprojs: {uprojs}')
-    log(f'aprojs: {aprojs}')
+    if log_items:
+        log(f'ritems: {ritems}')
+        log(f'uitems: {uitems}')
+        log(f'aitems: {aitems}')
 
-    return (projs, rprojs, uprojs, aprojs)
+    return (items, ritems, uitems, aitems)
 
 
 def main():
@@ -372,6 +408,14 @@ def main():
                         required=False,
                         help='Comma-separated list of labels.')
 
+    parser.add_argument('--blobs-added-labels', action='store',
+                        required=False,
+                        help='Comma-separated list of labels.')
+
+    parser.add_argument('--blobs-modified-labels', action='store',
+                        required=False,
+                        help='Comma-separated list of labels.')
+
     parser.add_argument('--label-prefix', action='store',
                         required=False,
                         help='Label prefix.')
@@ -398,6 +442,10 @@ def main():
         if args.labels != 'none' else None
     dnm_labels = [x.strip() for x in args.dnm_labels.split(',')] \
         if args.dnm_labels != 'none' else None
+    bloba_labels = [x.strip() for x in args.blobs_added_labels.split(',')] \
+        if args.blobs_added_labels != 'none' else None
+    blobm_labels = [x.strip() for x in args.blobs_modified_labels.split(',')] \
+        if args.blobs_modified_labels != 'none' else None
     label_prefix = args.label_prefix if args.label_prefix != 'none' else None
 
     if use_tree and not checkout:
@@ -478,7 +526,7 @@ def main():
     impostor_shas = 0
     invalid_revs = 0
     unreachables = 0
-    files = dict()
+    projdata = dict()
     # Link main PR to project PRs
     strs = list()
     if message:
@@ -489,11 +537,16 @@ def main():
     strs.append('| ---- | ------------ | ------------ |------|')
     # Sort in alphabetical order for the table
     for p in sorted(projs, key=lambda _p: _p[0]):
+        pdata = ProjectData(name=p[0])
+        projdata[p[0]] = pdata
         log(f'Processing project {p[0]}')
         manifest = old_manifest if p in rprojs else new_manifest
         old_rev = None if p in aprojs else next(
             filter(lambda _p: _p[0] == p[0], old_projs))[1]
         new_rev = None if p in rprojs else p[1]
+        # Store revisions for later use
+        pdata.old_rev = old_rev
+        pdata.new_rev = new_rev
         or_note = ' (Added)' if not old_rev else ''
         nr_note = ' (Removed)' if not new_rev else ''
         name_note = ' \U0001F195' if not old_rev else ' \U0000274c ' if \
@@ -510,16 +563,19 @@ def main():
 
             if p[0] not in allowed_unreachables:
                 unreachables += 1
+            log(f'{p[0]}: {pdata}')
             continue
 
+        pdata.repo = repo
         line = f'| {p[0]}{name_note} | {fmt_rev(repo, old_rev)}{or_note} '
         if p in pr_projs:
             pr = repo.get_pull(int(re_rev.match(new_rev)[1]))
             line += f'| {pr.html_url}{nr_note} '
             line += f'| [{repo.full_name}#{pr.number}/files]' + \
                     f'({pr.html_url}/files) |'
+            pdata.pr = pr
             # Store files changed
-            files[p[0]] = [f for f in pr.get_files()]
+            pdata.files = [f for f in pr.get_files()]
         else:
             (valid_rev, impostor) = is_valid_rev(repo, new_rev, check_impostor)
             if impostor:
@@ -537,13 +593,14 @@ def main():
                 # Store files changed
                 try:
                     c = repo.compare(old_rev, new_rev)
-                    files[p[0]] = [f for f in c.files]
+                    pdata.files = [f for f in c.files]
                 except GithubException as e:
                     log(e)
                     log(f"Can't get files changed for {p[0]}")
             else:
                 line += '| N/A |'
 
+        log(f'{p[0]}: {pdata}')
         strs.append(line)
 
     def _hashable(o):
@@ -551,11 +608,69 @@ def main():
             return frozenset(o)
         return o
 
+    def _cmp_module_yml(name):
+        if not name in projdata:
+            return None
+
+        p = projdata[name]
+
+        if not p.repo or not p.myml or not p.old_rev or not p.new_rev:
+            return None
+
+        try:
+            old_url = p.repo.get_contents(p.myml.filename, p.old_rev).download_url
+            if not p.pr:
+                new_url = p.repo.get_contents(p.myml.filename, p.new_rev).download_url
+            else:
+                new_url = _file_to_download_url(token, p.myml)
+        except GithubException:
+            log('Unable to fetch module.yml file')
+            return None
+
+        old_myml = yaml_from_url(token, old_url)
+        new_myml = yaml_from_url(token, new_url)
+
+        # Sort them to ensure moving them around has no effect, and then convert
+        # them to sets to be able to operate on those. Tuples are hashable,
+        # dictionaries are not
+        try:
+            old_blobs = sorted(old_myml['blobs'], key=lambda _p: _p['path'])
+            old_blobs = set(tuple(sorted(d.items(), key=lambda m: m[0])) for d in old_blobs)
+        except KeyError:
+            log(f'No old blobs found in this module.yml: {name}')
+            old_blobs = set()
+
+        try:
+            new_blobs = sorted(new_myml['blobs'], key=lambda _p: _p['path'])
+            new_blobs = set(tuple(sorted(d.items(), key=lambda m: m[0])) for d in new_blobs)
+        except KeyError:
+            log(f'No new blobs found in this module.yml: {name}')
+            new_blobs = set()
+
+        log(f'{name}: old blobs #{len(old_blobs)}')
+        log(f'{name}: new blobs #{len(new_blobs)}')
+
+        log('Blobs sets')
+        (_, rblobs, ublobs, ablobs) = _get_sets(old_blobs, new_blobs)
+
+        # Populate the project data with the results as a list of paths
+        p.rblobs = [d['path'] for d in (dict((k, v) for k, v in b) for b in rblobs)]
+        p.ublobs = [d['path'] for d in (dict((k, v) for k, v in b) for b in ublobs)]
+        p.ablobs = [d['path'] for d in (dict((k, v) for k, v in b) for b in ablobs)]
+
+        log(f'p.rblobs: {p.rblobs}')
+        log(f'p.ublobs: {p.ublobs}')
+        log(f'p.ablobs: {p.ablobs}')
+
+        return (p.rblobs, p.ublobs, p.ablobs)
+
     def _module_changed(p):
-        if p.name in files:
-            for f in files[p.name]:
+        if p.name in projdata and projdata[p.name].files:
+            for f in projdata[p.name].files:
                 if ('zephyr/module.yml' in f.filename or
                    'zephyr/module.yaml' in f.filename):
+                    projdata[p.name].myml = f
+                    log(f'project {p.name} modifies module.yml')
                     return True
         return False
 
@@ -586,21 +701,47 @@ def main():
         else:
             return ''
 
+    # Store blob stats
+    blobs_removed = 0
+    blobs_modified = 0
+    blobs_added = 0
+
     if len(meta_uprojs):
         strs.append('\n\nAdditional metadata changed:\n')
-        strs.append('| Name | URL | Submodules | West cmds | `module.yml` | ')
-        strs.append('| ---- | --- | ---------- | --------- | ------------ | ')
+        strs.append('| Name | URL | Submodules | West cmds | `module.yml` | Blobs |')
+        strs.append('| ---- | --- | ---------- | --------- | ------------ | ----- |')
         for p in sorted(meta_uprojs, key=lambda _p: _p[0]):
             url = _cmp_old_new(p, 1)
             subms = _cmp_old_new(p, 2)
             wcmds = _cmp_old_new(p, 3)
             mys = _cmp_old_new(p, 4, True)
-            line = f'| {p[0]} | {url} | {subms} | {wcmds} | {mys} |'
+            blobs = ''
+            if mys:
+                (rblobs, ublobs, ablobs) = _cmp_module_yml(p[0])
+                blobs_removed += len(rblobs)
+                blobs_modified += len(ublobs)
+                blobs_added += len(ablobs)
+                items = 3 - (rblobs, ublobs, ablobs).count([])
+                def _get_blob_str(b, sym):
+                    nonlocal items
+                    s = ''
+                    if b:
+                        s += f'{len(b)}x {sym}'
+                        items -= 1
+                        s += ", " if items else ''
+                    return s
+
+                blobs += _get_blob_str(rblobs, '\u274c')
+                blobs += _get_blob_str(ublobs, '\u270f')
+                blobs += _get_blob_str(ablobs, '\U0001F195')
+                
+            line = f'| {p[0]} | {url} | {subms} | {wcmds} | {mys} | {blobs} |'
             strs.append(line)
 
     # Add a note about the merge status of the manifest PR
     dnm, status_note = _get_merge_status(len(aprojs), len(rprojs), len(pr_projs),
-                                         len(meta_uprojs), impostor_shas,
+                                         len(meta_uprojs), blobs_removed +
+                                         blobs_modified + blobs_added, impostor_shas,
                                          invalid_revs, unreachables)
     status_note = f'\n\n{status_note}'
 
@@ -660,20 +801,26 @@ def main():
                     except GithubException:
                         log(f'Unable to remove prefixed label {l}')
 
-    if dnm_labels:
-        if not dnm:
-            # Remove the DNM labels
-            try:
-                for l in dnm_labels:
-                    log(f'removing label {l}')
-                    gh_pr.remove_from_labels(l)
-            except GithubException:
-                log('Unable to remove DNM label')
-        else:
-            # Add the DNM labels
-            for l in dnm_labels:
-                log(f'adding label {l}')
-                gh_pr.add_to_labels(l)
+    def _update_labels(labels, condition):
+        if labels:
+            if not condition:
+                # Remove the labels
+                try:
+                    for l in labels:
+                        log(f'removing label {l}')
+                        gh_pr.remove_from_labels(l)
+                except GithubException:
+                    log('Unable to remove label')
+            else:
+                # Add the labels
+                for l in labels:
+                    log(f'adding label {l}')
+                    gh_pr.add_to_labels(l)
+
+
+    _update_labels(dnm_labels, dnm)
+    _update_labels(blobm_labels, blobs_modified)
+    _update_labels(bloba_labels, blobs_added)
 
     sys.exit(0)
 
