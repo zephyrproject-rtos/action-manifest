@@ -5,25 +5,24 @@
 
 # standard library imports only here
 import argparse
-from dataclasses import dataclass
 import json
 import os
-from pathlib import Path
 import re
 import shlex
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
+from pathlib import Path
 
 # 3rd party imports go here
 import requests
-from github.File import File
-from github.Repository import Repository
-from github.PullRequest import PullRequest
-from github import Github, GithubException
-from west.manifest import Manifest, MalformedManifest, ImportFlag, \
-                          MANIFEST_PROJECT_INDEX
 import yaml
+from github import Github, GithubException
+from github.File import File
+from github.PullRequest import PullRequest
+from github.Repository import Repository
+from west.manifest import MANIFEST_PROJECT_INDEX, ImportFlag, MalformedManifest, Manifest
 
 NOTE = "\n\n*Note: This message is automatically posted and updated by the " \
        "Manifest GitHub Action.* "
@@ -158,7 +157,7 @@ def is_valid_rev(repo, rev, check_impostor):
     if sha:
         try:
             repo.get_commit(rev)
-        except GithubException as e:
+        except GithubException:
             return (False, False)
         # If no additional checks needed, return
         if not check_impostor:
@@ -248,7 +247,7 @@ def manifest_from_url(token, url):
 
     # Download manifest file
     raw_manifest = request(token, url).content.decode()
-    log(f'Manifest.from_data()')
+    log('Manifest.from_data()')
     try:
         manifest = Manifest.from_data(raw_manifest,
                                       import_flags=ImportFlag.IGNORE)
@@ -264,7 +263,7 @@ def _file_to_download_url(token, file):
         # new_mfile.raw_url gives us a <repo>/raw/<sha> style URL
         cont = request(token, url=file.contents_url).content.decode()
         return json.loads(cont)['download_url']
- 
+
 def _get_manifests_from_gh(token, gh_repo, mpath, new_mfile, base_sha):
 
     try:
@@ -291,7 +290,7 @@ def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha, import_flag):
 
     cur_sha = git('rev-parse', 'HEAD', cwd=checkout)
     if cur_sha != gh_pr.head.sha:
-        sys.exit(f'Current SHA {sha} is different from head.sha {gh_pr.head.sha}')
+        sys.exit(f'Current SHA {cur_sha} is different from head.sha {gh_pr.head.sha}')
 
     def manifest_at_rev(sha):
         cur_sha = git('rev-parse', 'HEAD', cwd=checkout)
@@ -496,8 +495,6 @@ def main():
                                                               base_sha)
     # Ensure we only remove the manifest project
     assert(MANIFEST_PROJECT_INDEX == 0)
-    omp = old_manifest.projects[MANIFEST_PROJECT_INDEX]
-    nmp = new_manifest.projects[MANIFEST_PROJECT_INDEX]
     ops = old_manifest.projects[MANIFEST_PROJECT_INDEX + 1:]
     nps = new_manifest.projects[MANIFEST_PROJECT_INDEX + 1:]
 
@@ -609,7 +606,7 @@ def main():
         return o
 
     def _cmp_module_yml(name):
-        if not name in projdata:
+        if name not in projdata:
             return None
 
         p = projdata[name]
@@ -681,8 +678,7 @@ def main():
                    _hashable(p.west_commands), _module_changed(p)) for p in nps)
 
     log('Metadata sets')
-    (_, meta_rprojs, meta_uprojs, meta_aprojs) = _get_sets(meta_op, meta_np)
-    meta_projs = meta_uprojs | meta_aprojs
+    (_, _, meta_uprojs, meta_aprojs) = _get_sets(meta_op, meta_np)
 
     def _cmp_old_new(p, index, force_change=False):
         old = None if p in meta_aprojs else next(filter(lambda _p: _p[0] == p[0], meta_op))[index]
@@ -734,7 +730,7 @@ def main():
                 blobs += _get_blob_str(rblobs, '\u274c')
                 blobs += _get_blob_str(ublobs, '\u270f')
                 blobs += _get_blob_str(ablobs, '\U0001F195')
-                
+
             line = f'| {p[0]} | {url} | {subms} | {wcmds} | {mys} | {blobs} |'
             strs.append(line)
 
@@ -763,59 +759,65 @@ def main():
         comment.edit(message)
 
     if not comment:
-        log(f'PR not modifying or having modified west projects, exiting early')
+        log('PR not modifying or having modified west projects, exiting early')
         sys.exit(0)
 
     # Now onto labels
     log(f"labels: {str(labels)}")
 
-    # Parse a list of labels given as '--labels ...' and return the ones that should be added to the PR.
+    # Parse a list of labels given as '--labels ...' and
+    # return the ones that should be added to the PR.
     def get_relevant_labels(label_list):
-        get_modules = lambda l: map(str.strip, l.split(':')[1].split(';'))
-        is_relevant = lambda l: len(set(get_modules(l)).intersection(projs_names)) != 0
-        return [l.split(':')[0].strip() for l in label_list if ':' not in l or is_relevant(l)]
+        def get_modules(lbl):
+            return map(str.strip, lbl.split(':')[1].split(';'))
+        def is_relevant(lbl):
+            return len(set(get_modules(lbl)).intersection(projs_names)) != 0
+
+        return [
+            lbl.split(':')[0].strip() for lbl in label_list if ':' not in lbl or is_relevant(lbl)
+        ]
 
     # Set or unset labels
     if labels:
-        for l in get_relevant_labels(labels):
+        for lbl in get_relevant_labels(labels):
             if len(projs):
-                log(f'adding label {l}')
-                gh_pr.add_to_labels(l)
+                log(f'adding label {lbl}')
+                gh_pr.add_to_labels(lbl)
             else:
                 try:
-                    log(f'removing label {l}')
-                    gh_pr.remove_from_labels(l)
+                    log(f'removing label {lbl}')
+                    gh_pr.remove_from_labels(lbl)
                 except GithubException:
-                    log(f'Unable to remove label {l}')
+                    log(f'Unable to remove label {lbl}')
 
     if label_prefix:
         for p in projs:
             gh_pr.add_to_labels(f'{label_prefix}{p[0]}')
         if not len(projs):
-            for l in gh_pr.get_labels():
-                if l.name.startswith(label_prefix):
+            for lbl in gh_pr.get_labels():
+                if lbl.name.startswith(label_prefix):
                     # Remove existing label
                     try:
-                        log(f'removing label {l}')
-                        gh_pr.remove_from_labels(l)
+                        log(f'removing label {lbl}')
+                        gh_pr.remove_from_labels(lbl)
                     except GithubException:
-                        log(f'Unable to remove prefixed label {l}')
+                        log(f'Unable to remove prefixed label {lbl}')
 
     def _update_labels(labels, condition):
         if labels:
             if not condition:
                 # Remove the labels
                 try:
-                    for l in labels:
-                        log(f'removing label {l}')
-                        gh_pr.remove_from_labels(l)
+                    for lbl in labels:
+                        log(f'removing label {lbl}')
+                        gh_pr.remove_from_labels(lbl)
                 except GithubException:
                     log('Unable to remove label')
             else:
                 # Add the labels
-                for l in labels:
-                    log(f'adding label {l}')
-                    gh_pr.add_to_labels(l)
+                for lbl in labels:
+                    log(f'adding label {lbl}')
+                    gh_pr.add_to_labels(lbl)
 
 
     _update_labels(dnm_labels, dnm)
