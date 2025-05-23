@@ -631,18 +631,25 @@ def main():
         # them to sets to be able to operate on those. Tuples are hashable,
         # dictionaries are not
         try:
-            old_blobs = sorted(old_myml['blobs'], key=lambda _p: _p['path'])
-            old_blobs = set(tuple(sorted(d.items(), key=lambda m: m[0])) for d in old_blobs)
+            # Save the path tuple first, then the rest of the dict
+            old_blobs = set(
+                tuple([('path', d.pop('path'))] + sorted(d.items(), key=lambda m: m[0]))
+                for d in old_myml['blobs']
+            )
         except KeyError:
             log(f'No old blobs found in this module.yml: {name}')
             old_blobs = set()
 
         try:
-            new_blobs = sorted(new_myml['blobs'], key=lambda _p: _p['path'])
-            new_blobs = set(tuple(sorted(d.items(), key=lambda m: m[0])) for d in new_blobs)
+            # Save the path tuple first, then the rest of the dict
+            new_blobs = set(
+                tuple([('path', d.pop('path'))] + sorted(d.items(), key=lambda m: m[0]))
+                for d in new_myml['blobs']
+            )
         except KeyError:
             log(f'No new blobs found in this module.yml: {name}')
             new_blobs = set()
+
 
         log(f'{name}: old blobs #{len(old_blobs)}')
         log(f'{name}: new blobs #{len(new_blobs)}')
