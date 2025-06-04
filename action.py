@@ -788,24 +788,32 @@ def main():
     if labels:
         for lbl in get_relevant_labels(labels):
             if len(projs):
-                log(f'adding label {lbl}')
-                gh_pr.add_to_labels(lbl)
+                log(f'Adding label {lbl}')
+                try:
+                    gh_pr.add_to_labels(lbl)
+                except GithubException:
+                    log(f'Failed to add label "{lbl}". It might not exist in the repo.')
             else:
                 try:
-                    log(f'removing label {lbl}')
+                    log(f'Removing label {lbl}')
                     gh_pr.remove_from_labels(lbl)
                 except GithubException:
                     log(f'Unable to remove label {lbl}')
 
     if label_prefix:
         for p in projs:
-            gh_pr.add_to_labels(f'{label_prefix}{p[0]}')
+            lbl = f'{label_prefix}{p[0]}'
+            log(f'Adding label {lbl}')
+            try:
+                gh_pr.add_to_labels(lbl)
+            except GithubException:
+                log(f'Failed to add label "{lbl}". It might not exist in the repo.')
         if not len(projs):
             for lbl in gh_pr.get_labels():
                 if lbl.name.startswith(label_prefix):
                     # Remove existing label
                     try:
-                        log(f'removing label {lbl}')
+                        log(f'Removing label {lbl}')
                         gh_pr.remove_from_labels(lbl)
                     except GithubException:
                         log(f'Unable to remove prefixed label {lbl}')
@@ -816,15 +824,18 @@ def main():
                 # Remove the labels
                 try:
                     for lbl in labels:
-                        log(f'removing label {lbl}')
+                        log(f'Removing label {lbl}')
                         gh_pr.remove_from_labels(lbl)
                 except GithubException:
                     log('Unable to remove label')
             else:
                 # Add the labels
                 for lbl in labels:
-                    log(f'adding label {lbl}')
-                    gh_pr.add_to_labels(lbl)
+                    log(f'Adding label {lbl}')
+                    try:
+                        gh_pr.add_to_labels(lbl)
+                    except GithubException:
+                        log(f'Failed to add label "{lbl}". It might not exist in the repo.')
 
 
     _update_labels(dnm_labels, dnm)
