@@ -288,10 +288,6 @@ def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha, import_flag):
 
     mfile = (Path(checkout) / Path(mpath)).resolve()
 
-    cur_sha = git('rev-parse', 'HEAD', cwd=checkout)
-    if cur_sha != gh_pr.head.sha:
-        sys.exit(f'Current SHA {cur_sha} is different from head.sha {gh_pr.head.sha}')
-
     def manifest_at_rev(sha):
         cur_sha = git('rev-parse', 'HEAD', cwd=checkout)
         if cur_sha != sha:
@@ -452,12 +448,6 @@ def main():
 
     # Abs path to checked-out tree
     workspace = os.environ.get('GITHUB_WORKSPACE', None)
-    if checkout:
-        checkout = ((Path(workspace) / Path(checkout)).resolve() if workspace else
-                   Path(checkout).resolve())
-        if not checkout.is_dir():
-            die(f'checkout repo {checkout} does not exist; check path')
-        log(f'Checkout path: {checkout}')
 
     token = os.environ.get('GITHUB_TOKEN', None)
     if not token:
@@ -470,6 +460,7 @@ def main():
     gh_repo = gh.get_repo(f'{org_str}/{repo_str}')
     gh_pr = gh_repo.get_pull(int(pr_str))
 
+    log(f'pr user: {gh_pr.head.user} and repo: {gh_pr.head.repo}')
     mpath = args.path
     new_mfile = None
     for f in gh_pr.get_files():
@@ -480,6 +471,20 @@ def main():
 
     if not new_mfile:
         log(f'Manifest file {args.path} not modified by this Pull Request')
+
+    if checkout:
+        checkout = ((Path(workspace) / Path(checkout)).resolve() if workspace else
+                   Path(checkout).resolve())
+        if not checkout.is_dir():
+            die(f'checkout repo {checkout} does not exist; check path')
+
+        log(git('log', '--oneline', '-n', '5', cwd=checkout))
+        log(git('remote', '-v', cwd=checkout))
+
+        org_sha = git('rev-parse', 'HEAD', cwd=checkout)
+        log(f'Checkout path: {checkout}, original sha: {org_sha}')
+        # Fetch from the PR to actually get the PR HEAD commit (pr.head.sha)
+        git('fetch', '-q', gh_repo.clone_url, f'pull/{pr_str}/head', cwd=checkout)
 
     base_sha = get_merge_base(gh_pr, checkout)
     log(f'PR base SHA: {gh_pr.base.sha} merge-base SHA: {base_sha}')
@@ -493,6 +498,10 @@ def main():
         (old_manifest, new_manifest) = _get_manifests_from_gh(token, gh_repo,
                                                               mpath, new_mfile,
                                                               base_sha)
+    if checkout:
+        # Leave the tree in the exact state it was received
+        git('checkout', '--quiet', '--detach', org_sha, cwd=checkout)
+
     # Ensure we only remove the manifest project
     assert(MANIFEST_PROJECT_INDEX == 0)
     ops = old_manifest.projects[MANIFEST_PROJECT_INDEX + 1:]
