@@ -231,6 +231,10 @@ def yaml_from_url(token, url):
 
     log(f'Creating yaml from {url}')
 
+    if not url:
+        # No module.yml found, return empty dict
+        return dict()
+
     # Download yaml file
     raw_yaml = request(token, url).content.decode()
     try:
@@ -625,13 +629,19 @@ def main():
 
         try:
             old_url = p.repo.get_contents(p.myml.filename, p.old_rev).download_url
+        except GithubException:
+            # module.yml has been added
+            log('Old module.yml not found')
+            old_url = None
+        try:
             if not p.pr:
                 new_url = p.repo.get_contents(p.myml.filename, p.new_rev).download_url
             else:
                 new_url = _file_to_download_url(token, p.myml)
         except GithubException:
-            log('Unable to fetch module.yml file')
-            return None
+            # module.yml has been removed
+            log('New module.yml not found')
+            new_url = None
 
         old_myml = yaml_from_url(token, old_url)
         new_myml = yaml_from_url(token, new_url)
