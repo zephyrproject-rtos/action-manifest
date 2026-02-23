@@ -18,7 +18,7 @@ from pathlib import Path
 # 3rd party imports go here
 import requests
 import yaml
-from github import Github, GithubException
+from github import Auth, Github, GithubException
 from github.File import File
 from github.PullRequest import PullRequest
 from github.Repository import Repository
@@ -458,7 +458,7 @@ def main():
         sys.exit('Github token not set in environment, please set the '
                  'GITHUB_TOKEN environment variable and retry.')
 
-    gh = Github(token)
+    gh = Github(auth=Auth.Token(token))
 
     org_str, repo_str, pr_str = gh_pr_split(args.pr)
     gh_repo = gh.get_repo(f'{org_str}/{repo_str}')
