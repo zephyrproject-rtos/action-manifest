@@ -24,10 +24,12 @@ from github.PullRequest import PullRequest
 from github.Repository import Repository
 from west.manifest import MANIFEST_PROJECT_INDEX, ImportFlag, MalformedManifest, Manifest
 
-NOTE = "\n\n*Note: This message is automatically posted and updated by the " \
-       "Manifest GitHub Action.* "
+NOTE = (
+    "\n\n*Note: This message is automatically posted and updated by the Manifest GitHub Action.* "
+)
 
 _logging = 0
+
 
 @dataclass
 class ProjectData:
@@ -39,8 +41,9 @@ class ProjectData:
     files: list[File] | None = None
     myml: File | None = None
     rblobs: list[str] | None = None
-    ublobs: list[str] | None= None
+    ublobs: list[str] | None = None
     ablobs: list[str] | None = None
+
 
 def log(s):
     if _logging:
@@ -51,6 +54,7 @@ def die(s):
     print(f'ERROR: {s}', file=sys.stderr)
     sys.exit(1)
 
+
 def gh_pr_split(s):
     sl = s.split('/')
     if len(sl) != 3:
@@ -58,16 +62,22 @@ def gh_pr_split(s):
 
     return sl[0], sl[1], sl[2]
 
+
 def cmd2str(cmd):
     # Formats the command-line arguments in the iterable 'cmd' into a string,
     # for error messages and the like
 
     return " ".join(shlex.quote(word) for word in cmd)
 
+
 def str2import_flag(import_flag):
-    flags = {'all': ImportFlag.DEFAULT, 'none': ImportFlag.IGNORE,
-             'self': ImportFlag.IGNORE_PROJECTS}
+    flags = {
+        'all': ImportFlag.DEFAULT,
+        'none': ImportFlag.IGNORE,
+        'self': ImportFlag.IGNORE_PROJECTS,
+    }
     return flags[import_flag]
+
 
 # Taken from Zephyr's check_compliance script
 def git(*args, cwd=None):
@@ -80,7 +90,8 @@ def git(*args, cwd=None):
     log(f'Executing git cmd {git_cmd}')
     try:
         git_process = subprocess.Popen(
-            git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
+            git_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd
+        )
     except OSError as e:
         raise RuntimeError(f"failed to run '{cmd2str(git_cmd)}': {e}") from e
 
@@ -100,10 +111,9 @@ to stderr.
 
 
 def get_merge_base(pr, checkout):
-
     if checkout:
         log(f'Using git merge-base in {checkout}')
-        sha = git('merge-base', pr.base.sha,  pr.head.sha, cwd=checkout)
+        sha = git('merge-base', pr.base.sha, pr.head.sha, cwd=checkout)
         log(f'Found merge base {sha} with git')
         return sha
 
@@ -132,6 +142,7 @@ def get_merge_base(pr, checkout):
 
     die('Unable to find a merge base')
 
+
 # Inspired in west code:
 # https://github.com/zephyrproject-rtos/west/blob/99482c684528cdf76a843e04b83c34e49a2d8cf2/src/west/app/project.py#L1165
 def is_sha(rev):
@@ -143,9 +154,9 @@ def is_sha(rev):
 
     return len(rev) == 40
 
+
 # Returns tuple (valid_rev, is_impostor)
 def is_valid_rev(repo, rev, check_impostor):
-
     # No revision to check, consider everything OK
     if not rev:
         log('is_valid_rev: rev is None')
@@ -167,10 +178,9 @@ def is_valid_rev(repo, rev, check_impostor):
         try:
             c = repo.compare(base, head)
         except GithubException as e:
-            if (e.status == 404 and
-               "no common ancestor" in e.data["message"].lower()):
-                   log(f"No common ancestor between {base} and {head}")
-                   return False
+            if e.status == 404 and "no common ancestor" in e.data["message"].lower():
+                log(f"No common ancestor between {base} and {head}")
+                return False
             else:
                 log(f'is_valid_rev: compare: GithubException: {e}')
                 raise
@@ -192,14 +202,14 @@ def is_valid_rev(repo, rev, check_impostor):
 
     return (True, True) if sha else (False, False)
 
+
 def fmt_rev(repo, rev):
     if not rev:
         return 'N/A'
 
     try:
         if is_sha(rev):
-            all_refs = [b for b in repo.get_branches()] + \
-                       [t for t in repo.get_tags()]
+            all_refs = [b for b in repo.get_branches()] + [t for t in repo.get_tags()]
             refs = [f'`{r.name}`' for r in all_refs if rev == r.commit.sha]
             s = repo.get_commit(rev).html_url
             # commits get formatted nicely by GitHub itself
@@ -217,18 +227,20 @@ def fmt_rev(repo, rev):
 
     return f'[{repo.full_name}@{rev}]({s})'
 
+
 def shorten_rev(rev):
     if is_sha(rev):
         return rev[:8]
     return rev
+
 
 def request(token, url):
     header = {'Authorization': f'token {token}'}
     req = requests.get(url=url, headers=header)
     return req
 
-def yaml_from_url(token, url):
 
+def yaml_from_url(token, url):
     log(f'Creating yaml from {url}')
 
     if not url:
@@ -245,31 +257,31 @@ def yaml_from_url(token, url):
 
     return yml
 
-def manifest_from_url(token, url):
 
+def manifest_from_url(token, url):
     log(f'Creating manifest from {url}')
 
     # Download manifest file
     raw_manifest = request(token, url).content.decode()
     log('Manifest.from_data()')
     try:
-        manifest = Manifest.from_data(raw_manifest,
-                                      import_flags=ImportFlag.IGNORE)
+        manifest = Manifest.from_data(raw_manifest, import_flags=ImportFlag.IGNORE)
     except MalformedManifest as e:
         die(f'Failed to parse manifest from {url}: {e}')
 
     log(f'Created manifest {manifest}')
     return manifest
 
+
 def _file_to_download_url(token, file):
-        # When authorization is enabled we require a
-        # raw.githubusercontent.com/..?token= style URL (aka download_url) but
-        # new_mfile.raw_url gives us a <repo>/raw/<sha> style URL
-        cont = request(token, url=file.contents_url).content.decode()
-        return json.loads(cont)['download_url']
+    # When authorization is enabled we require a
+    # raw.githubusercontent.com/..?token= style URL (aka download_url) but
+    # new_mfile.raw_url gives us a <repo>/raw/<sha> style URL
+    cont = request(token, url=file.contents_url).content.decode()
+    return json.loads(cont)['download_url']
+
 
 def _get_manifests_from_gh(token, gh_repo, mpath, new_mfile, base_sha):
-
     try:
         old_mfile = gh_repo.get_contents(mpath, base_sha)
     except GithubException:
@@ -286,6 +298,7 @@ def _get_manifests_from_gh(token, gh_repo, mpath, new_mfile, base_sha):
         new_manifest = old_manifest
 
     return (old_manifest, new_manifest)
+
 
 def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha, import_flag):
     # Check if current tree is at the right location
@@ -305,9 +318,12 @@ def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha, import_flag):
 
     return (old_manifest, new_manifest)
 
-def _get_merge_status(len_a, len_r, len_pr, len_meta, blob_changes, impostor_shas,
-                      invalid_revs, unreachables):
+
+def _get_merge_status(
+    len_a, len_r, len_pr, len_meta, blob_changes, impostor_shas, invalid_revs, unreachables
+):
     strs = []
+
     def plural(count):
         return 's' if count > 1 else ''
 
@@ -331,7 +347,7 @@ def _get_merge_status(len_a, len_r, len_pr, len_meta, blob_changes, impostor_sha
     if not len(strs):
         return False, '\u2705 **All manifest checks OK**'
 
-    n = '\U000026D4 **DNM label due to: '
+    n = '\U000026d4 **DNM label due to: '
     for i, s in enumerate(strs):
         if i == (len(strs) - 1):
             _s = f'and {s}' if len(strs) > 1 else s
@@ -341,14 +357,12 @@ def _get_merge_status(len_a, len_r, len_pr, len_meta, blob_changes, impostor_sha
     n += '**'
     return True, n
 
-def _get_sets(old_items, new_items, log_items=True):
 
+def _get_sets(old_items, new_items, log_items=True):
     # Removed items
-    ritems = set(filter(lambda p: p[0] not in list(p[0] for p in new_items),
-                        old_items - new_items))
+    ritems = set(filter(lambda p: p[0] not in list(p[0] for p in new_items), old_items - new_items))
     # Updated items
-    uitems = set(filter(lambda p: p[0] in list(p[0] for p in old_items),
-                        new_items - old_items))
+    uitems = set(filter(lambda p: p[0] in list(p[0] for p in old_items), new_items - old_items))
     # Added items
     aitems = new_items - old_items - uitems
 
@@ -364,64 +378,85 @@ def _get_sets(old_items, new_items, log_items=True):
 
 
 def main():
-
     parser = argparse.ArgumentParser(
         description="GH Action script for west manifest management",
-        formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('-p', '--path', action='store',
-                        required=True,
-                        help='Path to the manifest file.')
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        '-p', '--path', action='store', required=True, help='Path to the manifest file.'
+    )
 
-    parser.add_argument('--pr', default=None, required=True,
-                        help='<org>/<repo>/<pr num>')
+    parser.add_argument('--pr', default=None, required=True, help='<org>/<repo>/<pr num>')
 
-    parser.add_argument('-m', '--message', action='store',
-                        required=False,
-                        help='Message to post.')
+    parser.add_argument('-m', '--message', action='store', required=False, help='Message to post.')
 
-    parser.add_argument('--checkout-path', action='store',
-                        required=False,
-                        help='Path to the checked out PR.')
+    parser.add_argument(
+        '--checkout-path', action='store', required=False, help='Path to the checked out PR.'
+    )
 
-    parser.add_argument('--use-tree-checkout', action='store',
-                        required=False,
-                        help='Use a checked-out tree to parse the manifests.')
+    parser.add_argument(
+        '--use-tree-checkout',
+        action='store',
+        required=False,
+        help='Use a checked-out tree to parse the manifests.',
+    )
 
-    parser.add_argument('--west-import-flag', action='store',
-                        required=False, choices=['all', 'none', 'self'],
-                        help='Use a checked-out tree to parse the manifests.')
+    parser.add_argument(
+        '--west-import-flag',
+        action='store',
+        required=False,
+        choices=['all', 'none', 'self'],
+        help='Use a checked-out tree to parse the manifests.',
+    )
 
-    parser.add_argument('--check-impostor-commits', action='store',
-                        required=False,
-                        help='Check for impostor commits.')
+    parser.add_argument(
+        '--check-impostor-commits',
+        action='store',
+        required=False,
+        help='Check for impostor commits.',
+    )
 
-    parser.add_argument('--allowed-unreachables', action='store',
-                        required=False,
-                        help='Comma-separated list of repos which are allowed to be unreachable.')
+    parser.add_argument(
+        '--allowed-unreachables',
+        action='store',
+        required=False,
+        help='Comma-separated list of repos which are allowed to be unreachable.',
+    )
 
-    parser.add_argument('-l', '--labels', action='store',
-                        required=False,
-                        help='Comma-separated list of labels.')
+    parser.add_argument(
+        '-l', '--labels', action='store', required=False, help='Comma-separated list of labels.'
+    )
 
-    parser.add_argument('--dnm-labels', action='store',
-                        required=False,
-                        help='Comma-separated list of labels.')
+    parser.add_argument(
+        '--dnm-labels', action='store', required=False, help='Comma-separated list of labels.'
+    )
 
-    parser.add_argument('--blobs-added-labels', action='store',
-                        required=False,
-                        help='Comma-separated list of labels.')
+    parser.add_argument(
+        '--blobs-added-labels',
+        action='store',
+        required=False,
+        help='Comma-separated list of labels.',
+    )
 
-    parser.add_argument('--blobs-modified-labels', action='store',
-                        required=False,
-                        help='Comma-separated list of labels.')
+    parser.add_argument(
+        '--blobs-modified-labels',
+        action='store',
+        required=False,
+        help='Comma-separated list of labels.',
+    )
 
-    parser.add_argument('--label-prefix', action='store',
-                        required=False,
-                        help='Label prefix.')
+    parser.add_argument('--label-prefix', action='store', required=False, help='Label prefix.')
 
-    parser.add_argument('-v', '--verbose-level', action='store',
-                        type=int, default=0, choices=range(0, 2),
-                        required=False, help='Verbosity level.')
+    parser.add_argument(
+        '-v',
+        '--verbose-level',
+        action='store',
+        type=int,
+        default=0,
+        choices=range(0, 2),
+        required=False,
+        help='Verbosity level.',
+    )
 
     log(sys.argv)
 
@@ -435,16 +470,25 @@ def main():
     import_flag = str2import_flag(args.west_import_flag or 'all')
     use_tree = args.use_tree_checkout != 'false'
     check_impostor = args.check_impostor_commits != 'false'
-    allowed_unreachables = [x.strip() for x in args.allowed_unreachables.split(',')] \
-        if args.allowed_unreachables != 'none' else []
-    labels = [x.strip() for x in args.labels.split(',')] \
-        if args.labels != 'none' else None
-    dnm_labels = [x.strip() for x in args.dnm_labels.split(',')] \
-        if args.dnm_labels != 'none' else None
-    bloba_labels = [x.strip() for x in args.blobs_added_labels.split(',')] \
-        if args.blobs_added_labels != 'none' else None
-    blobm_labels = [x.strip() for x in args.blobs_modified_labels.split(',')] \
-        if args.blobs_modified_labels != 'none' else None
+    allowed_unreachables = (
+        [x.strip() for x in args.allowed_unreachables.split(',')]
+        if args.allowed_unreachables != 'none'
+        else []
+    )
+    labels = [x.strip() for x in args.labels.split(',')] if args.labels != 'none' else None
+    dnm_labels = (
+        [x.strip() for x in args.dnm_labels.split(',')] if args.dnm_labels != 'none' else None
+    )
+    bloba_labels = (
+        [x.strip() for x in args.blobs_added_labels.split(',')]
+        if args.blobs_added_labels != 'none'
+        else None
+    )
+    blobm_labels = (
+        [x.strip() for x in args.blobs_modified_labels.split(',')]
+        if args.blobs_modified_labels != 'none'
+        else None
+    )
     label_prefix = args.label_prefix if args.label_prefix != 'none' else None
 
     if use_tree and not checkout:
@@ -455,8 +499,10 @@ def main():
 
     token = os.environ.get('GITHUB_TOKEN', None)
     if not token:
-        sys.exit('Github token not set in environment, please set the '
-                 'GITHUB_TOKEN environment variable and retry.')
+        sys.exit(
+            'Github token not set in environment, please set the '
+            'GITHUB_TOKEN environment variable and retry.'
+        )
 
     gh = Github(auth=Auth.Token(token))
 
@@ -477,8 +523,9 @@ def main():
         log(f'Manifest file {args.path} not modified by this Pull Request')
 
     if checkout:
-        checkout = ((Path(workspace) / Path(checkout)).resolve() if workspace else
-                   Path(checkout).resolve())
+        checkout = (
+            (Path(workspace) / Path(checkout)).resolve() if workspace else Path(checkout).resolve()
+        )
         if not checkout.is_dir():
             die(f'checkout repo {checkout} does not exist; check path')
 
@@ -494,22 +541,21 @@ def main():
     log(f'PR base SHA: {gh_pr.base.sha} merge-base SHA: {base_sha}')
 
     if use_tree:
-        (old_manifest, new_manifest) = _get_manifests_from_tree(mpath,
-                                                                gh_pr, checkout,
-                                                                base_sha,
-                                                                import_flag)
+        (old_manifest, new_manifest) = _get_manifests_from_tree(
+            mpath, gh_pr, checkout, base_sha, import_flag
+        )
     else:
-        (old_manifest, new_manifest) = _get_manifests_from_gh(token, gh_repo,
-                                                              mpath, new_mfile,
-                                                              base_sha)
+        (old_manifest, new_manifest) = _get_manifests_from_gh(
+            token, gh_repo, mpath, new_mfile, base_sha
+        )
     if checkout:
         # Leave the tree in the exact state it was received
         git('checkout', '--quiet', '--detach', org_sha, cwd=checkout)
 
     # Ensure we only remove the manifest project
-    assert(MANIFEST_PROJECT_INDEX == 0)
-    ops = old_manifest.projects[MANIFEST_PROJECT_INDEX + 1:]
-    nps = new_manifest.projects[MANIFEST_PROJECT_INDEX + 1:]
+    assert MANIFEST_PROJECT_INDEX == 0
+    ops = old_manifest.projects[MANIFEST_PROJECT_INDEX + 1 :]
+    nps = new_manifest.projects[MANIFEST_PROJECT_INDEX + 1 :]
 
     old_projs = set((p.name, p.revision) for p in ops)
     new_projs = set((p.name, p.revision) for p in nps)
@@ -541,8 +587,9 @@ def main():
     strs = list()
     if message:
         strs.append(message)
-    strs.append('The following west manifest projects have changed revision in this Pull '
-                'Request:\n')
+    strs.append(
+        'The following west manifest projects have changed revision in this Pull Request:\n'
+    )
     strs.append('| Name | Old Revision | New Revision | Diff |')
     strs.append('| ---- | ------------ | ------------ |------|')
     # Sort in alphabetical order for the table
@@ -551,19 +598,19 @@ def main():
         projdata[p[0]] = pdata
         log(f'Processing project {p[0]}')
         manifest = old_manifest if p in rprojs else new_manifest
-        old_rev = None if p in aprojs else next(
-            filter(lambda _p: _p[0] == p[0], old_projs))[1]
+        old_rev = None if p in aprojs else next(filter(lambda _p: _p[0] == p[0], old_projs))[1]
         new_rev = None if p in rprojs else p[1]
         # Store revisions for later use
         pdata.old_rev = old_rev
         pdata.new_rev = new_rev
         or_note = ' (Added)' if not old_rev else ''
         nr_note = ' (Removed)' if not new_rev else ''
-        name_note = ' \U0001F195' if not old_rev else ' \U0000274c ' if \
-                    not new_rev else ''
+        name_note = ' \U0001f195' if not old_rev else ' \U0000274c ' if not new_rev else ''
         url = manifest.get_projects([p[0]])[0].url
-        re_url = re.compile(r'https://github\.com/'
-                            '([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?')
+        re_url = re.compile(
+            r'https://github\.com/'
+            '([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?'
+        )
         try:
             repo = gh.get_repo(re_url.match(url)[1])
         except (GithubException, TypeError) as error:
@@ -581,8 +628,7 @@ def main():
         if p in pr_projs:
             pr = repo.get_pull(int(re_rev.match(new_rev)[1]))
             line += f'| {pr.html_url}{nr_note} '
-            line += f'| [{repo.full_name}#{pr.number}/files]' + \
-                    f'({pr.html_url}/files) |'
+            line += f'| [{repo.full_name}#{pr.number}/files]' + f'({pr.html_url}/files) |'
             pdata.pr = pr
             # Store files changed
             pdata.files = [f for f in pr.get_files()]
@@ -597,9 +643,11 @@ def main():
             else:
                 line += f'| {fmt_rev(repo, new_rev)}{nr_note}'
             if p in uprojs:
-                line += f'| [{repo.full_name}@{shorten_rev(old_rev)}..' + \
-                        f'{shorten_rev(new_rev)}]' + \
-                        f'({repo.html_url}/compare/{old_rev}..{new_rev}) |'
+                line += (
+                    f'| [{repo.full_name}@{shorten_rev(old_rev)}..'
+                    + f'{shorten_rev(new_rev)}]'
+                    + f'({repo.html_url}/compare/{old_rev}..{new_rev}) |'
+                )
                 # Store files changed
                 try:
                     c = repo.compare(old_rev, new_rev)
@@ -669,7 +717,6 @@ def main():
             log(f'No new blobs found in this module.yml: {name}')
             new_blobs = set()
 
-
         log(f'{name}: old blobs #{len(old_blobs)}')
         log(f'{name}: new blobs #{len(new_blobs)}')
 
@@ -690,18 +737,20 @@ def main():
     def _module_changed(p):
         if p.name in projdata and projdata[p.name].files:
             for f in projdata[p.name].files:
-                if ('zephyr/module.yml' in f.filename or
-                   'zephyr/module.yaml' in f.filename):
+                if 'zephyr/module.yml' in f.filename or 'zephyr/module.yaml' in f.filename:
                     projdata[p.name].myml = f
                     log(f'project {p.name} modifies module.yml')
                     return True
         return False
 
     # Check additional metadata
-    meta_op = set((p.name, p.url, _hashable(p.submodules),
-                   _hashable(p.west_commands), False) for p in ops)
-    meta_np = set((p.name, p.url, _hashable(p.submodules),
-                   _hashable(p.west_commands), _module_changed(p)) for p in nps)
+    meta_op = set(
+        (p.name, p.url, _hashable(p.submodules), _hashable(p.west_commands), False) for p in ops
+    )
+    meta_np = set(
+        (p.name, p.url, _hashable(p.submodules), _hashable(p.west_commands), _module_changed(p))
+        for p in nps
+    )
 
     log('Metadata sets')
     (_, _, meta_uprojs, meta_aprojs) = _get_sets(meta_op, meta_np)
@@ -715,11 +764,11 @@ def main():
             return ''
         # Select which symbol to show
         if not old and new:
-            return '\U0001F195' if not force_change else '\u270f' # added
+            return '\U0001f195' if not force_change else '\u270f'  # added
         elif not new and old:
-            return '\u274c' # removed
+            return '\u274c'  # removed
         elif new != old:
-            return '\u270f' # modified
+            return '\u270f'  # modified
         else:
             return ''
 
@@ -744,6 +793,7 @@ def main():
                 blobs_modified += len(ublobs)
                 blobs_added += len(ablobs)
                 items = 3 - (rblobs, ublobs, ablobs).count([])
+
                 def _get_blob_str(b, sym):
                     nonlocal items
                     s = ''
@@ -755,16 +805,22 @@ def main():
 
                 blobs += _get_blob_str(rblobs, '\u274c')
                 blobs += _get_blob_str(ublobs, '\u270f')
-                blobs += _get_blob_str(ablobs, '\U0001F195')
+                blobs += _get_blob_str(ablobs, '\U0001f195')
 
             line = f'| {p[0]} | {url} | {subms} | {wcmds} | {mys} | {blobs} |'
             strs.append(line)
 
     # Add a note about the merge status of the manifest PR
-    dnm, status_note = _get_merge_status(len(aprojs), len(rprojs), len(pr_projs),
-                                         len(meta_uprojs), blobs_removed +
-                                         blobs_modified + blobs_added, impostor_shas,
-                                         invalid_revs, unreachables)
+    dnm, status_note = _get_merge_status(
+        len(aprojs),
+        len(rprojs),
+        len(pr_projs),
+        len(meta_uprojs),
+        blobs_removed + blobs_modified + blobs_added,
+        impostor_shas,
+        invalid_revs,
+        unreachables,
+    )
     status_note = f'\n\n{status_note}'
 
     message = '\n'.join(strs) + status_note + NOTE
@@ -796,6 +852,7 @@ def main():
     def get_relevant_labels(label_list):
         def get_modules(lbl):
             return map(str.strip, lbl.split(':')[1].split(';'))
+
         def is_relevant(lbl):
             return len(set(get_modules(lbl)).intersection(projs_names)) != 0
 
@@ -855,7 +912,6 @@ def main():
                         gh_pr.add_to_labels(lbl)
                     except GithubException:
                         log(f'Failed to add label "{lbl}". It might not exist in the repo.')
-
 
     _update_labels(dnm_labels, dnm)
     _update_labels(blobm_labels, blobs_modified)
