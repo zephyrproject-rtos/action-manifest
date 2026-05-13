@@ -43,6 +43,7 @@ class ProjectData:
     rblobs: list[str] | None = None
     ublobs: list[str] | None = None
     ablobs: list[str] | None = None
+    abins: list[str] | None = None
 
 
 def log(s):
@@ -320,7 +321,15 @@ def _get_manifests_from_tree(mpath, gh_pr, checkout, base_sha, import_flag):
 
 
 def _get_merge_status(
-    len_a, len_r, len_pr, len_meta, blob_changes, impostor_shas, invalid_revs, unreachables
+    len_a,
+    len_r,
+    len_pr,
+    len_meta,
+    blob_changes,
+    bins_added,
+    impostor_shas,
+    invalid_revs,
+    unreachables,
 ):
     strs = []
 
@@ -337,6 +346,8 @@ def _get_merge_status(
         strs.append(f'{len_meta} project{plural(len_meta)} with metadata changes')
     if blob_changes:
         strs.append(f'{blob_changes} blob change{plural(blob_changes)}')
+    if bins_added:
+        strs.append(f'{bins_added} binary file addition{plural(bins_added)}')
     if impostor_shas:
         strs.append(f'{impostor_shas} impostor SHA{plural(impostor_shas)}')
     if invalid_revs:
@@ -448,6 +459,22 @@ def main():
     parser.add_argument('--label-prefix', action='store', required=False, help='Label prefix.')
 
     parser.add_argument(
+        '--check-bin-files-added',
+        action='store',
+        default='false',
+        required=False,
+        help='Check for binary files added by module updates.',
+    )
+
+    parser.add_argument(
+        '--bin-files-added-labels',
+        action='store',
+        default='none',
+        required=False,
+        help='Comma-separated list of binary files added labels.',
+    )
+
+    parser.add_argument(
         '-v',
         '--verbose-level',
         action='store',
@@ -487,6 +514,12 @@ def main():
     blobm_labels = (
         [x.strip() for x in args.blobs_modified_labels.split(',')]
         if args.blobs_modified_labels != 'none'
+        else None
+    )
+    check_bin_files_added = args.check_bin_files_added != 'false'
+    bina_labels = (
+        [x.strip() for x in args.bin_files_added_labels.split(',')]
+        if args.bin_files_added_labels != 'none'
         else None
     )
     label_prefix = args.label_prefix if args.label_prefix != 'none' else None
@@ -810,6 +843,33 @@ def main():
             line = f'| {p[0]} | {url} | {subms} | {wcmds} | {mys} | {blobs} |'
             strs.append(line)
 
+    def _is_added_bin(file):
+        if file.status not in ('added', 'renamed'):
+            return False
+
+        # GitHub omits textual patches for binary files. Large text files may
+        # also omit patches, so only treat zero-line changes as binary-like.
+        return not getattr(file, 'patch', None) and file.additions == 0 and file.deletions == 0
+
+    bins_added = 0
+
+    if check_bin_files_added:
+        for pdata in sorted(projdata.values(), key=lambda p: p.name):
+            if not pdata.files:
+                continue
+
+            pdata.abins = [f.filename for f in pdata.files if _is_added_bin(f)]
+            bins_added += len(pdata.abins)
+
+        if bins_added:
+            strs.append('\n\nBinary files added:\n')
+            strs.append('| Name | Files |')
+            strs.append('| ---- | ----- |')
+            for name, pdata in sorted(projdata.items()):
+                if pdata.abins:
+                    files = '<br>'.join(f'`{f}`' for f in pdata.abins)
+                    strs.append(f'| {name} | {files} |')
+
     # Add a note about the merge status of the manifest PR
     dnm, status_note = _get_merge_status(
         len(aprojs),
@@ -817,6 +877,7 @@ def main():
         len(pr_projs),
         len(meta_uprojs),
         blobs_removed + blobs_modified + blobs_added,
+        bins_added,
         impostor_shas,
         invalid_revs,
         unreachables,
@@ -916,6 +977,7 @@ def main():
     _update_labels(dnm_labels, dnm)
     _update_labels(blobm_labels, blobs_modified)
     _update_labels(bloba_labels, blobs_added)
+    _update_labels(bina_labels, bins_added)
 
     sys.exit(0)
 

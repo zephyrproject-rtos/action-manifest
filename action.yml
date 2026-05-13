@@ -63,6 +63,14 @@ inputs:
     description: 'Prefix for project-specific labels.'
     required: false
     default: 'none'
+  check-bin-files-added:
+    description: 'If true, check for binary files added by module updates.'
+    required: false
+    default: 'false'
+  bin-files-added-labels:
+    description: 'Comma-separated list of binary files added labels.'
+    required: false
+    default: 'none'
 
 runs:
   using: "composite"
@@ -83,7 +91,9 @@ runs:
            --blobs-modified-labels "${{ inputs.blobs-modified-labels }}" -v "${{ inputs.verbosity-level }}" \
            --use-tree-checkout "${{ inputs.use-tree-checkout }}" \
            --west-import-flag "${{ inputs.west-import-flag }}" \
-           --check-impostor-commits "${{ inputs.check-impostor-commits }}"
+           --check-impostor-commits "${{ inputs.check-impostor-commits }}" \
+           --check-bin-files-added "${{ inputs.check-bin-files-added }}" \
+           --bin-files-added-labels "${{ inputs.bin-files-added-labels }}"
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
