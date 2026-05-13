@@ -13,6 +13,7 @@ It currently performs the following tasks:
   manifest point to a Pull Request
 - Adds a set of labels to be associated with a change to the manifest
 - Adds a set of per-manifest project with the format `{prefix}{project_name}`
+- Optionally reports binary files added by changed module revisions
 - Posts and updates a message with a revision comparison table
 
 See [action.yml](action.yml) for a full list of options.
