@@ -651,9 +651,12 @@ def main():
         nr_note = ' (Removed)' if not new_rev else ''
         name_note = ' \U0001f195' if not old_rev else ' \U0000274c ' if not new_rev else ''
         url = manifest.get_projects([p[0]])[0].url
+        # Accept HTTPS (https://github.com/org/repo), scp-like SSH
+        # (git@github.com:org/repo) and ssh:// (ssh://git@github.com/org/repo)
+        # URLs, with or without a trailing ".git"
         re_url = re.compile(
-            r'https://github\.com/'
-            '([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?'
+            r'(?:https://|ssh://(?:[\w.-]+@)?|[\w.-]+@)github\.com[/:]'
+            r'([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+?)(?:\.git)?/?$'
         )
         try:
             repo = gh.get_repo(re_url.match(url)[1])
